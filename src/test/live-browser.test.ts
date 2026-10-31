@@ -15,6 +15,12 @@ describe("observed browser actions", () => {
     expect(Decision.safeParse({ done: true, reason: "", action: null, expectedTexts: [" "] }).success).toBe(false);
   });
   it("escapes regex characters in visible text", () => {
-    expect(actionCode({ type: "click", text: "Book (slot)" })).toContain('Book \\\\(slot\\\\)');
+    const code = actionCode({ type: "click", text: "Book (slot)" });
+    const encoded = code.match(/new RegExp\((".*?"), "i"\)/)?.[1];
+    expect(encoded).toBeDefined();
+    if (!encoded) throw new Error("No literal text expression");
+    const matcher = new RegExp(JSON.parse(encoded), "i");
+    expect(matcher.test("Book (slot)")).toBe(true);
+    expect(matcher.test("Book slot")).toBe(false);
   });
 });

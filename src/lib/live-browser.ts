@@ -36,7 +36,10 @@ export function actionCode(action: Action): string {
 // Scroll only the viewport to trigger lazy photos, then restore it. Do not wait on
 // networkidle: analytics and realtime connections can keep it busy indefinitely.
 export const settleCode = `
-await page.waitForTimeout(1200);
+for (let readinessAttempt = 0; readinessAttempt < 3; readinessAttempt++) {
+try {
+await page.waitForLoadState('domcontentloaded', {timeout: 15000});
+await page.waitForTimeout(2000);
 await page.evaluate(async () => {
   const start = scrollY;
   const limit = Math.min(document.documentElement.scrollHeight, innerHeight * 4);
@@ -51,6 +54,12 @@ await page.waitForFunction(() => {
 await page.evaluate(async () => {
   await Promise.race([Promise.all([...document.images].filter(i => i.complete && i.naturalWidth > 0).map(i => i.decode().catch(() => {}))), new Promise(r => setTimeout(r, 2000))]);
 });
+break;
+} catch(e) {
+  if (readinessAttempt === 2 || !String(e).includes('Execution context was destroyed')) throw e;
+  await page.waitForTimeout(1000);
+}
+}
 `;
 
 export const observationCode = `${settleCode}

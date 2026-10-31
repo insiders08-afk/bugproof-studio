@@ -23,6 +23,10 @@ describe("live gate", () => {
   it("passes when all expected texts appear", () => expect(liveGate(base).verdict).toBe("PASS"));
   it("server 500 is an application bug", () => expect(liveGate({ ...base, statusCode: 500 }).verdict).toBe("APPLICATION_BUG"));
   it("visible error text is an application bug", () => expect(liveGate({ ...base, pageText: base.pageText + " Something went wrong" }).verdict).toBe("APPLICATION_BUG"));
-  it("missing expected label is drift", () => expect(liveGate({ ...base, expectedTexts: ["Create Endpoint"] }).verdict).toBe("DOCUMENTATION_DRIFT"));
+  it("missing expected label alone cannot prove drift", () => expect(liveGate({ ...base, expectedTexts: ["Create Endpoint"] }).verdict).toBe("INCONCLUSIVE"));
   it("unreachable site is inconclusive", () => expect(liveGate({ ...base, statusCode: null, scrapeError: "x" }).verdict).toBe("INCONCLUSIVE"));
+  it("failed browser click is inconclusive even when baseline text matches", () => expect(liveGate({ ...base, actionsError: "click timeout" }).verdict).toBe("INCONCLUSIVE"));
+  it("unknown page status cannot pass", () => expect(liveGate({ ...base, statusCode: null }).verdict).toBe("INCONCLUSIVE"));
+  it("matches casing and whitespace variations", () => expect(liveGate({ ...base, pageText: "SIGN   IN\nPricing" }).verdict).toBe("PASS"));
+  it("blank expectations cannot pass", () => expect(liveGate({ ...base, expectedTexts: [" "] }).verdict).toBe("INCONCLUSIVE"));
 });

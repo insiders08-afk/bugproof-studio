@@ -184,8 +184,8 @@ export type LiveEvidence = { id: string; kind: EvidenceKind; label: string; deta
 
 export type LiveObservation = {
   statusCode: number | null;
-  scrapeError?: string;
-  actionsError?: string;
+  scrapeError?: string | undefined;
+  actionsError?: string | undefined;
   pageText: string;
   expectedTexts: string[];
   forbiddenTexts: string[];
@@ -193,14 +193,15 @@ export type LiveObservation = {
 
 /** Deterministic gate for live websites: verdict comes only from observed status, action results and page text. */
 export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence: number; found: string[]; missing: string[]; errorsSeen: string[] } {
-  const text = o.pageText.toLowerCase();
-  const found = o.expectedTexts.filter((t) => text.includes(t.toLowerCase()));
-  const missing = o.expectedTexts.filter((t) => !text.includes(t.toLowerCase()));
-  const errorsSeen = o.forbiddenTexts.filter((t) => t && text.includes(t.toLowerCase()));
-  if (o.scrapeError && o.statusCode == null) return { verdict: "INCONCLUSIVE", confidence: 0.2, found, missing, errorsSeen };
+  const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+  const text = normalize(o.pageText);
+  const found = o.expectedTexts.filter((t) => normalize(t) && text.includes(normalize(t)));
+  const missing = o.expectedTexts.filter((t) => !normalize(t) || !text.includes(normalize(t)));
+  const errorsSeen = o.forbiddenTexts.filter((t) => normalize(t) && text.includes(normalize(t)));
+  if (o.scrapeError || o.actionsError || o.statusCode == null) return { verdict: "INCONCLUSIVE", confidence: 0.2, found, missing, errorsSeen };
   if ((o.statusCode ?? 0) >= 500 || errorsSeen.length > 0) return { verdict: "APPLICATION_BUG", confidence: (o.statusCode ?? 0) >= 500 ? 0.95 : 0.8, found, missing, errorsSeen };
   if ((o.statusCode ?? 0) >= 400) return { verdict: "APPLICATION_BUG", confidence: 0.75, found, missing, errorsSeen };
-  if (o.actionsError || missing.length > 0) return { verdict: "DOCUMENTATION_DRIFT", confidence: o.expectedTexts.length ? 0.6 + 0.3 * (missing.length / o.expectedTexts.length) : 0.6, found, missing, errorsSeen };
+  if (missing.length > 0) return { verdict: "INCONCLUSIVE", confidence: 0.4, found, missing, errorsSeen };
   if (o.expectedTexts.length === 0) return { verdict: "INCONCLUSIVE", confidence: 0.4, found, missing, errorsSeen };
   return { verdict: "PASS", confidence: 0.9, found, missing, errorsSeen };
 }

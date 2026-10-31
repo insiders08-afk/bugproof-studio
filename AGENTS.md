@@ -10,4 +10,5 @@
 <!-- LOVABLE:END -->
 
 - RealityGate verdicts come only from deterministic gates in src/lib/realitygate.ts (evidenceGate for the sandbox lab, liveGate for real URLs); AI (src/lib/livetest.functions.ts, src/lib/investigate.functions.ts) only plans actions/expected texts and narrates, so conclusions stay evidence-backed.
-- Real-site runs use Firecrawl scrape with actions + screenshots via the connector gateway; past tests are stored in browser localStorage (no backend yet).
+- Real-site runs use a single Firecrawl Interact browser session through the connector gateway, with validated visible-text actions and per-step screenshot observations; keeping one session preserves navigation state and failure evidence. Past tests remain in browser localStorage (no backend yet).
+- Browser commands and replay recipes share src/lib/live-browser.ts so observed actions and exported tests follow the same targeting and readiness rules.

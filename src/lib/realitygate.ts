@@ -175,3 +175,32 @@ export function replayGuardrail(s: Scenario, button = "Create Endpoint"): Replay
   steps.push({ name: "expect row Active visible", pass: true, detail: "visible" });
   return steps;
 }
+
+// ---------- Live website testing (any URL) ----------
+
+export type LiveVerdict = "PASS" | "APPLICATION_BUG" | "DOCUMENTATION_DRIFT" | "INCONCLUSIVE";
+
+export type LiveEvidence = { id: string; kind: EvidenceKind; label: string; detail: string; ok: boolean; screenshot?: string };
+
+export type LiveObservation = {
+  statusCode: number | null;
+  scrapeError?: string;
+  actionsError?: string;
+  pageText: string;
+  expectedTexts: string[];
+  forbiddenTexts: string[];
+};
+
+/** Deterministic gate for live websites: verdict comes only from observed status, action results and page text. */
+export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence: number; found: string[]; missing: string[]; errorsSeen: string[] } {
+  const text = o.pageText.toLowerCase();
+  const found = o.expectedTexts.filter((t) => text.includes(t.toLowerCase()));
+  const missing = o.expectedTexts.filter((t) => !text.includes(t.toLowerCase()));
+  const errorsSeen = o.forbiddenTexts.filter((t) => t && text.includes(t.toLowerCase()));
+  if (o.scrapeError && o.statusCode == null) return { verdict: "INCONCLUSIVE", confidence: 0.2, found, missing, errorsSeen };
+  if ((o.statusCode ?? 0) >= 500 || errorsSeen.length > 0) return { verdict: "APPLICATION_BUG", confidence: (o.statusCode ?? 0) >= 500 ? 0.95 : 0.8, found, missing, errorsSeen };
+  if ((o.statusCode ?? 0) >= 400) return { verdict: "APPLICATION_BUG", confidence: 0.75, found, missing, errorsSeen };
+  if (o.actionsError || missing.length > 0) return { verdict: "DOCUMENTATION_DRIFT", confidence: o.expectedTexts.length ? 0.6 + 0.3 * (missing.length / o.expectedTexts.length) : 0.6, found, missing, errorsSeen };
+  if (o.expectedTexts.length === 0) return { verdict: "INCONCLUSIVE", confidence: 0.4, found, missing, errorsSeen };
+  return { verdict: "PASS", confidence: 0.9, found, missing, errorsSeen };
+}

@@ -28,7 +28,7 @@ const VERDICT_STYLE: Record<string, string> = {
   PASS: "bg-success/20 text-success border-success",
   INCONCLUSIVE: "bg-muted text-muted-foreground border-border",
 };
-const STAGES = ["Reading the page", "AI planning the test", "Running in a real browser", "Evidence gate deciding", "Writing the report"];
+const STAGES = ["Running test"];
 
 function Home() {
   const run = useServerFn(runLiveTest);
@@ -50,12 +50,14 @@ function Home() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true); setErr("");
     try {
       const r = await run({ data: { url: url.trim(), prompt: prompt.trim() } });
       const next = [r, ...history].slice(0, 30);
       setHistory(next); setOpen(r.id);
-      localStorage.setItem(KEY, JSON.stringify(next));
+      try { localStorage.setItem(KEY, JSON.stringify(next)); }
+      catch { setErr("Test completed, but your browser could not save the history."); }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally { setBusy(false); }
@@ -82,7 +84,7 @@ function Home() {
         <Button type="submit" size="lg" className="w-full" disabled={busy || prompt.trim().length < 3}>
           {busy ? `${STAGES[stage]}…` : "Run test"}
         </Button>
-        {busy && <p className="text-center text-xs text-muted-foreground">Real browser runs usually take 20–60 seconds.</p>}
+        {busy && <p role="status" className="text-center text-xs text-muted-foreground">Test in progress…</p>}
         {err && <p className="text-sm text-destructive">{err}</p>}
       </form>
 
@@ -92,14 +94,14 @@ function Home() {
         <div className="space-y-3">
           {history.map((r) => (
             <div key={r.id} className="rounded border border-border bg-card">
-              <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center gap-3 p-3 text-left">
+              <Button variant="ghost" onClick={() => setOpen(open === r.id ? null : r.id)} className="flex h-auto w-full items-center gap-3 whitespace-normal p-3 text-left">
                 <span className={cn("rounded border px-2 py-0.5 font-mono text-[11px] font-semibold", VERDICT_STYLE[r.verdict])}>{r.verdict}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">{r.prompt}</span>
                   <span className="block truncate font-mono text-xs text-muted-foreground">{r.url} · {new Date(r.createdAt).toLocaleString()}</span>
                 </span>
                 <span className="font-mono text-xs text-muted-foreground">{Math.round(r.confidence * 100)}%</span>
-              </button>
+              </Button>
               {open === r.id && <Report r={r} />}
             </div>
           ))}
@@ -112,6 +114,7 @@ function Home() {
 function Report({ r }: { r: LiveReport }) {
   return (
     <div className="space-y-5 border-t border-border p-4 text-sm">
+      {r.finalUrl && <p className="break-all font-mono text-xs text-muted-foreground">Final page: {r.finalUrl}</p>}
       {r.narrative && <Block title="AI report"><p>{r.narrative}</p>
         {r.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{r.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}</Block>}
       {r.screenshots.length > 0 && <Block title="What the browser saw">

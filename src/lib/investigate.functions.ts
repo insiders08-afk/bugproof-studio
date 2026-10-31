@@ -15,12 +15,12 @@ export type Analysis = {
   expectedButton: string;
   narrative: string;
   nextSteps: string[];
-  error?: string;
+  error?: string | undefined;
 };
 
 async function scrapeDocs(url: string): Promise<string> {
-  const lov = process.env.LOVABLE_API_KEY;
-  const fc = process.env.FIRECRAWL_API_KEY;
+  const lov = process.env['LOVABLE_API_KEY'];
+  const fc = process.env['FIRECRAWL_API_KEY'];
   if (!lov || !fc) throw new Error("Firecrawl connector is not configured");
   const res = await fetch("https://connector-gateway.lovable.dev/firecrawl/v2/scrape", {
     method: "POST",
@@ -35,7 +35,7 @@ async function scrapeDocs(url: string): Promise<string> {
 async function askAI(prompt: string): Promise<string> {
   const { createOpenAI } = await import("@ai-sdk/openai");
   const { streamText } = await import("ai");
-  const apiKey = process.env.LOVABLE_API_KEY!;
+  const apiKey = process.env['LOVABLE_API_KEY']!;
   const provider = createOpenAI({
     baseURL: "https://ai.gateway.lovable.dev/v1",
     apiKey,
@@ -58,7 +58,7 @@ async function askAI(prompt: string): Promise<string> {
 }
 
 export const analyzeInvestigation = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => Input.parse(d))
+  .validator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<Analysis> => {
     let docs = data.docsText;
     let docsSource = "Built-in tutorial";

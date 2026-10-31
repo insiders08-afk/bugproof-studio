@@ -1,12 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import {
-  DEFAULT_TICKET, DEFAULT_TUTORIAL, SCENARIOS, evidenceGate, playwrightRecipe, replayGuardrail, runSandbox,
-  type Evidence, type ReplayStep, type Scenario, type Scorecard,
-} from "@/lib/realitygate";
-import { analyzeInvestigation, type Analysis } from "@/lib/investigate.functions";
-import { TargetSnapshot } from "@/components/TargetSnapshot";
+import { useEffect, useState } from "react";
+import { runLiveTest, type LiveReport } from "@/lib/livetest.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,193 +10,125 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "RealityGate — Evidence-backed bug investigations" },
-      { name: "description", content: "Turn vague software complaints into evidence-backed diagnoses and regression tests." },
-      { property: "og:title", content: "RealityGate — Evidence-backed bug investigations" },
-      { property: "og:description", content: "Detect documentation drift vs real bugs, prove it with evidence, and lock it in with a Playwright guardrail." },
+      { title: "RealityGate — Test any website in plain English" },
+      { name: "description", content: "Paste a URL, describe the test in plain English, get an evidence-backed verdict with screenshots." },
+      { property: "og:title", content: "RealityGate — Test any website in plain English" },
+      { property: "og:description", content: "Real browser runs, screenshots, a bug/drift/pass verdict and a Playwright guardrail." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: Dashboard,
+  component: Home,
 });
 
+const KEY = "realitygate.history.v1";
 const VERDICT_STYLE: Record<string, string> = {
   APPLICATION_BUG: "bg-destructive/20 text-destructive border-destructive",
   DOCUMENTATION_DRIFT: "bg-primary/20 text-primary border-primary",
-  NOT_REPRODUCED: "bg-success/20 text-success border-success",
+  PASS: "bg-success/20 text-success border-success",
   INCONCLUSIVE: "bg-muted text-muted-foreground border-border",
 };
+const STAGES = ["Reading the page", "AI planning the test", "Running in a real browser", "Evidence gate deciding", "Writing the report"];
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function Home() {
+  const run = useServerFn(runLiveTest);
+  const [url, setUrl] = useState("https://");
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState(0);
+  const [err, setErr] = useState("");
+  const [history, setHistory] = useState<LiveReport[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
 
-function Dashboard() {
-  const analyze = useServerFn(analyzeInvestigation);
-  const [ticket, setTicket] = useState(DEFAULT_TICKET);
-  const [docsText, setDocsText] = useState(DEFAULT_TUTORIAL);
-  const [docsUrl, setDocsUrl] = useState("");
-  const [scenario, setScenario] = useState<Scenario>("bug");
-  const [running, setRunning] = useState(false);
-  const [timeline, setTimeline] = useState<Evidence[]>([]);
-  const [selected, setSelected] = useState<Evidence | null>(null);
-  const [score, setScore] = useState<Scorecard | null>(null);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [button, setButton] = useState("Create Endpoint");
-  const [replay, setReplay] = useState<{ scenario: Scenario; steps: ReplayStep[] }[]>([]);
+  useEffect(() => { try { setHistory(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch { /* ignore */ } }, []);
+  useEffect(() => {
+    if (!busy) return;
+    setStage(0);
+    const t = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 9000);
+    return () => clearInterval(t);
+  }, [busy]);
 
-  async function investigate() {
-    setRunning(true); setTimeline([]); setScore(null); setAnalysis(null); setReplay([]); setSelected(null);
-    let run = runSandbox(scenario);
-    for (const e of run.evidence) { setTimeline((t) => [...t, e]); setSelected(e); await sleep(350); }
-    let gate = evidenceGate(run.evidence);
-    const a = await analyze({ data: { ticket, docsUrl, docsText, verdict: gate.verdict, evidence: gate.facts } });
-    if (a.expectedButton && a.expectedButton !== "Create Endpoint") {
-      run = runSandbox(scenario, a.expectedButton);
-      setTimeline(run.evidence);
-      gate = evidenceGate(run.evidence);
-    }
-    setButton(a.expectedButton || "Create Endpoint");
-    setAnalysis(a); setScore(gate); setRunning(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr("");
+    try {
+      const r = await run({ data: { url: url.trim(), prompt: prompt.trim() } });
+      const next = [r, ...history].slice(0, 30);
+      setHistory(next); setOpen(r.id);
+      localStorage.setItem(KEY, JSON.stringify(next));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
   }
 
-  const kindIcon: Record<string, string> = { action: "▶", dom: "◇", network: "⇄", screenshot: "▣" };
-
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <div className="font-mono text-xs text-primary">// failure forensics</div>
-          <h1 className="text-3xl font-bold tracking-tight">RealityGate</h1>
-          <p className="text-sm text-muted-foreground">Complaint → evidence → verdict → guardrail test.</p>
-        </div>
-        <Link to="/sandbox" className="font-mono text-sm text-info hover:underline">Open sandbox target ↗</Link>
+    <div className="mx-auto max-w-4xl p-6">
+      <header className="mb-10 flex items-center justify-between">
+        <div className="font-mono text-sm"><span className="text-primary">//</span> RealityGate</div>
+        <Link to="/lab" className="font-mono text-xs text-info hover:underline">Sandbox lab ↗</Link>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        {/* Intake */}
-        <section className="space-y-4">
-          <Panel title="01 · Ticket">
-            <Textarea rows={3} value={ticket} onChange={(e) => setTicket(e.target.value)} />
-          </Panel>
-          <Panel title="02 · Tutorial / docs">
-            <Input placeholder="Optional docs URL (scraped with Firecrawl)" value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} />
-            <Textarea rows={7} className="mt-2 font-mono text-xs" value={docsText} onChange={(e) => setDocsText(e.target.value)} />
-          </Panel>
-          <Panel title="03 · Sandbox scenario">
-            <div className="grid gap-2">
-              {SCENARIOS.map((s) => (
-                <button key={s.id} onClick={() => setScenario(s.id)}
-                  className={cn("rounded border p-2 text-left text-sm", scenario === s.id ? "border-primary bg-primary/10" : "border-border")}>
-                  <div className="font-medium">{s.label}</div>
-                  <div className="text-xs text-muted-foreground">{s.hint}</div>
-                </button>
-              ))}
+      <section className="mb-12 text-center">
+        <h1 className="text-4xl font-bold tracking-tight">Test any website in plain English.</h1>
+        <p className="mt-2 text-muted-foreground">A real browser runs your test. You get the verdict, the screenshots and the proof.</p>
+      </section>
+
+      <form onSubmit={submit} className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-lg">
+        <label className="block font-mono text-xs uppercase tracking-widest text-muted-foreground">Website URL</label>
+        <Input type="url" required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" className="h-11 font-mono" />
+        <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">What should we test?</label>
+        <Textarea required rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)}
+          placeholder='e.g. "Search for laptop and check that results appear" or "The pricing page should show a Pro plan"' />
+        <Button type="submit" size="lg" className="w-full" disabled={busy || prompt.trim().length < 3}>
+          {busy ? `${STAGES[stage]}…` : "Run test"}
+        </Button>
+        {busy && <p className="text-center text-xs text-muted-foreground">Real browser runs usually take 20–60 seconds.</p>}
+        {err && <p className="text-sm text-destructive">{err}</p>}
+      </form>
+
+      <section className="mt-12">
+        <h2 className="mb-3 font-mono text-xs uppercase tracking-widest text-muted-foreground">Past tests</h2>
+        {history.length === 0 && <p className="text-sm text-muted-foreground">No tests yet.</p>}
+        <div className="space-y-3">
+          {history.map((r) => (
+            <div key={r.id} className="rounded border border-border bg-card">
+              <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center gap-3 p-3 text-left">
+                <span className={cn("rounded border px-2 py-0.5 font-mono text-[11px] font-semibold", VERDICT_STYLE[r.verdict])}>{r.verdict}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{r.prompt}</span>
+                  <span className="block truncate font-mono text-xs text-muted-foreground">{r.url} · {new Date(r.createdAt).toLocaleString()}</span>
+                </span>
+                <span className="font-mono text-xs text-muted-foreground">{Math.round(r.confidence * 100)}%</span>
+              </button>
+              {open === r.id && <Report r={r} />}
             </div>
-          </Panel>
-          <Button className="w-full" size="lg" onClick={investigate} disabled={running || !ticket.trim()}>
-            {running ? "Investigating…" : "Run investigation"}
-          </Button>
-        </section>
-
-        <section className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Panel title="Live timeline">
-              {timeline.length === 0 && <Empty>Run an investigation to stream evidence.</Empty>}
-              <ol className="space-y-1">
-                {timeline.map((e) => (
-                  <li key={e.id}>
-                    <button onClick={() => setSelected(e)}
-                      className={cn("flex w-full gap-2 rounded px-2 py-1.5 text-left font-mono text-xs hover:bg-accent", selected?.id === e.id && "bg-accent")}>
-                      <span className="text-muted-foreground">{e.id}</span>
-                      <span className={e.ok ? "text-success" : "text-destructive"}>{kindIcon[e.kind]}</span>
-                      <span className="flex-1">{e.label}</span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </Panel>
-            <Panel title="Evidence inspector">
-              {!selected ? <Empty>Select an evidence item.</Empty> : (
-                <div className="space-y-3">
-                  <div className="font-mono text-xs"><span className="text-primary">{selected.id} · {selected.kind}</span><div className="mt-1 break-all text-muted-foreground">{selected.detail}</div></div>
-                  {selected.snapshot && <TargetSnapshot snap={selected.snapshot} highlight={selected.kind === "dom"} />}
-                </div>
-              )}
-            </Panel>
-          </div>
-
-          <Panel title="Reproduction scorecard">
-            {!score ? <Empty>{running ? "Gate evaluating evidence…" : "No verdict yet."}</Empty> : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <span className={cn("rounded border px-3 py-1 font-mono text-sm font-semibold", VERDICT_STYLE[score.verdict])}>{score.verdict}</span>
-                  <Metric label="confidence" value={`${Math.round(score.confidence * 100)}%`} />
-                  <Metric label="facts" value={score.facts.length} />
-                  <Metric label="inferences" value={score.inferences.length} />
-                  <Metric label="unknowns" value={score.unknowns.length} />
-                </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <List title="Observed facts" tone="text-success" items={score.facts} />
-                  <List title="Inferences" tone="text-info" items={score.inferences} />
-                  <List title="Unknowns" tone="text-muted-foreground" items={score.unknowns} />
-                </div>
-                {analysis && (
-                  <div className="rounded border border-border bg-muted/50 p-3 text-sm">
-                    <div className="mb-1 font-mono text-xs text-muted-foreground">AI narrative · docs: {analysis.docsSource} · expected button “{analysis.expectedButton}”</div>
-                    {analysis.narrative && <p>{analysis.narrative}</p>}
-                    {analysis.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{analysis.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}
-                    {analysis.error && <p className="mt-2 text-xs text-destructive">{analysis.error}</p>}
-                  </div>
-                )}
-              </div>
-            )}
-          </Panel>
-
-          <Panel title="Crash-to-Guardrail">
-            {score?.verdict !== "APPLICATION_BUG" ? (
-              <Empty>{score ? "Guardrails are only generated for confirmed application bugs." : "Waiting for a confirmed bug."}</Empty>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                <pre className="max-h-80 overflow-auto rounded border border-border bg-background p-3 font-mono text-[11px] leading-relaxed">{playwrightRecipe(button)}</pre>
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => setReplay((r) => [{ scenario: "bug", steps: replayGuardrail("bug", button) }, ...r])}>Replay: before fix</Button>
-                    <Button onClick={() => setReplay((r) => [{ scenario: "repaired", steps: replayGuardrail("repaired", button) }, ...r])}>Replay: after fix</Button>
-                  </div>
-                  {replay.map((r, i) => {
-                    const pass = r.steps.every((s) => s.pass);
-                    return (
-                      <div key={i} className="rounded border border-border p-2 font-mono text-xs">
-                        <div className={pass ? "text-success" : "text-destructive"}>{pass ? "✓ PASSED" : "✗ FAILED"} · {r.scenario === "bug" ? "before fix" : "after fix"}</div>
-                        {r.steps.map((s, j) => <div key={j} className="text-muted-foreground"><span className={s.pass ? "text-success" : "text-destructive"}>{s.pass ? "✓" : "✗"}</span> {s.name} — {s.detail}</div>)}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </Panel>
-        </section>
-      </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Report({ r }: { r: LiveReport }) {
   return (
-    <div className="rounded border border-border bg-card p-4">
-      <div className="mb-3 font-mono text-xs uppercase tracking-widest text-muted-foreground">{title}</div>
-      {children}
+    <div className="space-y-5 border-t border-border p-4 text-sm">
+      {r.narrative && <Block title="AI report"><p>{r.narrative}</p>
+        {r.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{r.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}</Block>}
+      {r.screenshots.length > 0 && <Block title="What the browser saw">
+        <div className="grid gap-3 sm:grid-cols-2">{r.screenshots.map((s, i) => (
+          <a key={i} href={s} target="_blank" rel="noreferrer"><img src={s} alt={`Screenshot ${i + 1} of ${r.url}`} className="rounded border border-border" loading="lazy" /></a>
+        ))}</div></Block>}
+      <Block title="Test plan (AI)"><ol className="list-decimal pl-5 text-muted-foreground">{r.plan.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+        <div className="mt-2 font-mono text-xs text-muted-foreground">Expected: {r.plan.expectedTexts.join(", ") || "—"} · Failure signs: {r.plan.forbiddenTexts.join(", ") || "—"}</div></Block>
+      <Block title="Evidence">
+        <ol className="space-y-1 font-mono text-xs">{r.evidence.filter((e) => e.kind !== "screenshot").map((e) => (
+          <li key={e.id} className="flex gap-2"><span className="text-muted-foreground">{e.id}</span><span className={e.ok ? "text-success" : "text-destructive"}>{e.ok ? "✓" : "✗"}</span><span className="flex-1 break-all">{e.label} <span className="text-muted-foreground">— {e.detail.slice(0, 200)}</span></span></li>
+        ))}</ol></Block>
+      <Block title="Playwright guardrail"><pre className="max-h-72 overflow-auto rounded border border-border bg-background p-3 font-mono text-[11px]">{r.playwright}</pre></Block>
+      {r.errors.length > 0 && <p className="text-xs text-destructive">{r.errors.join(" · ")}</p>}
     </div>
   );
 }
-const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-sm text-muted-foreground">{children}</p>;
-const Metric = ({ label, value }: { label: string; value: string | number }) => (
-  <div><div className="font-mono text-lg font-semibold">{value}</div><div className="text-xs text-muted-foreground">{label}</div></div>
-);
-const List = ({ title, items, tone }: { title: string; items: string[]; tone: string }) => (
-  <div>
-    <div className={cn("mb-1 text-xs font-semibold uppercase", tone)}>{title}</div>
-    <ul className="space-y-1 font-mono text-[11px] text-muted-foreground">{items.map((i) => <li key={i}>{i}</li>)}</ul>
-  </div>
+const Block = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div><div className="mb-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">{title}</div>{children}</div>
 );

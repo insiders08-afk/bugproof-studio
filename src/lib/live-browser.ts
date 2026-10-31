@@ -47,7 +47,7 @@ await page.evaluate(async () => {
 await page.waitForFunction(() => {
   const imgs = [...document.images].filter(img => { const r = img.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.top < innerHeight && r.bottom > 0; });
   return imgs.every(img => img.complete);
-}, { timeout: 12000 }).catch(() => {});
+}, null, { timeout: 12000 }).catch(() => {});
 await page.evaluate(async () => {
   await Promise.race([Promise.all([...document.images].filter(i => i.complete && i.naturalWidth > 0).map(i => i.decode().catch(() => {}))), new Promise(r => setTimeout(r, 2000))]);
 });
@@ -62,7 +62,7 @@ const observation = await page.evaluate(() => {
     controls: [...document.querySelectorAll('button, a, input, textarea, [role="button"]')].filter(el => el.getBoundingClientRect().width > 0).map(el => ({ text: el.textContent?.trim().slice(0, 180), label: el.getAttribute('aria-label') || el.getAttribute('placeholder') })).slice(0, 80)
   };
 });
-console.log("RG_OBSERVATION:" + JSON.stringify({ ...observation, url: page.url(), title: await page.title(), screenshot: "data:image/jpeg;base64," + (await page.screenshot({ type: "jpeg", quality: 65, fullPage: false })).toString("base64"), actionError }));
+console.log("RG_OBSERVATION:" + JSON.stringify({ ...observation, statusCode: navigationStatus, url: page.url(), title: await page.title(), screenshot: "data:image/jpeg;base64," + (await page.screenshot({ type: "jpeg", quality: 65, fullPage: false })).toString("base64"), actionError }));
 `;
 
 export function recipe(url: string, actions: Action[], expectedTexts: string[]) {

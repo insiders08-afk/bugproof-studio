@@ -23,11 +23,11 @@ export type LiveReport = {
   nextSteps: string[];
   playwright: string;
   errors: string[];
-  finalUrl?: string;
+  finalUrl?: string | undefined;
 };
 
 const Snapshot = z.object({
-  text: z.string(), url: z.string(), title: z.string(), screenshot: z.string(), actionError: z.string().nullable(),
+  text: z.string(), url: z.string(), title: z.string(), screenshot: z.string(), actionError: z.string().nullable(), statusCode: z.number().nullable().optional(),
   images: z.object({ total: z.number(), loaded: z.number(), pending: z.number(), broken: z.number() }),
   controls: z.array(z.object({ text: z.string().nullable().optional(), label: z.string().nullable() })),
 });
@@ -95,14 +95,11 @@ export const runLiveTest = createServerFn({ method: "POST" })
     try {
       const opened = z.object({ id: z.string() }).parse(await call("/interact", { ttl: 600, activityTtl: 180, blockAds: false }));
       session = opened.id;
-      current = await observe(`let actionError = null;
-        try { await page.setViewportSize({width:1280,height:900}); const response = await page.goto(${JSON.stringify(data.url)}, {waitUntil:"domcontentloaded",timeout:30000}); console.log("RG_STATUS:" + (response?.status() ?? "null")); }
+      current = await observe(`let actionError = null; let navigationStatus = null;
+        try { await page.setViewportSize({width:1280,height:900}); const response = await page.goto(${JSON.stringify(data.url)}, {waitUntil:"domcontentloaded",timeout:30000}); navigationStatus = response?.status() ?? null; }
         catch(e) { actionError = String(e); }
         ${observationCode}`);
-      // HTTP status is captured separately; don't infer success from text alone.
-      const statusRaw = await call(`/interact/${encodeURIComponent(session)}/execute`, { code: `console.log("RG_STATUS:" + (await page.request.get(page.url())).status());`, language: "node", timeout: 30 });
-      const statusOut = z.object({stdout:z.string().optional()}).parse(statusRaw).stdout || "";
-      statusCode = Number(statusOut.match(/RG_STATUS:(\d{3})/)?.[1]) || null;
+      statusCode = current.statusCode ?? null;
       record(current, "Initial page after photo wait");
       if (current.actionError) throw new Error(current.actionError);
       push({ kind: "network", label: `GET ${current.url} → ${statusCode ?? "unknown"}`, detail: current.title, ok: statusCode != null && statusCode < 400 });
@@ -118,7 +115,7 @@ export const runLiveTest = createServerFn({ method: "POST" })
         }
         if (!decision.action) throw new Error(decision.reason || "No safe next action identified");
         const action = decision.action;
-        current = await observe(`let actionError = null; try { ${actionCode(action)} } catch(e) { actionError = String(e); } ${observationCode}`);
+        current = await observe(`let actionError = null; let navigationStatus = ${statusCode}; try { ${actionCode(action)} } catch(e) { actionError = String(e); } ${observationCode}`);
         push({ kind: "action", label: action.type === "click" ? `Tap “${action.text}”` : action.type, detail: current.actionError || decision.reason, ok: !current.actionError });
         record(current, `After ${action.type} (photo wait completed)`);
         if (current.actionError) { actionsError = current.actionError; break; }

@@ -184,8 +184,8 @@ export type LiveEvidence = { id: string; kind: EvidenceKind; label: string; deta
 
 export type LiveObservation = {
   statusCode: number | null;
-  scrapeError?: string;
-  actionsError?: string;
+  scrapeError?: string | undefined;
+  actionsError?: string | undefined;
   pageText: string;
   expectedTexts: string[];
   forbiddenTexts: string[];
@@ -193,7 +193,7 @@ export type LiveObservation = {
 
 /** Deterministic gate for live websites: verdict comes only from observed status, action results and page text. */
 export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence: number; found: string[]; missing: string[]; errorsSeen: string[] } {
-  const text = o.pageText.toLowerCase();
+   const text = o.pageText.toLowerCase();
   const found = o.expectedTexts.filter((t) => text.includes(t.toLowerCase()));
   const missing = o.expectedTexts.filter((t) => !text.includes(t.toLowerCase()));
   const errorsSeen = o.forbiddenTexts.filter((t) => t && text.includes(t.toLowerCase()));

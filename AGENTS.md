@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- RealityGate verdicts come only from the deterministic evidence gate in src/lib/realitygate.ts; AI (server fn in src/lib/investigate.functions.ts) only narrates and extracts expected UI labels, so conclusions stay evidence-backed.

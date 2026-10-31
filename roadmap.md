@@ -1,0 +1,3 @@
+- [ ] Replace guessed clicks with screenshot-grounded, visible-text actions and bounded photo waits.
+- [ ] Keep failed actions inconclusive and preserve evidence; add regression tests.
+- [ ] Rerun the Ratan Box Cricket flow through RealityGate and inspect its report/screenshots.

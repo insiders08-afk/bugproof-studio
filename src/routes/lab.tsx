@@ -8,7 +8,6 @@ import {
 import { analyzeInvestigation, type Analysis } from "@/lib/investigate.functions";
 import { TargetSnapshot } from "@/components/TargetSnapshot";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +38,6 @@ function Dashboard() {
   const analyze = useServerFn(analyzeInvestigation);
   const [ticket, setTicket] = useState(DEFAULT_TICKET);
   const [docsText, setDocsText] = useState(DEFAULT_TUTORIAL);
-  const [docsUrl, setDocsUrl] = useState("");
   const [scenario, setScenario] = useState<Scenario>("bug");
   const [running, setRunning] = useState(false);
   const [timeline, setTimeline] = useState<Evidence[]>([]);
@@ -54,7 +52,7 @@ function Dashboard() {
     let run = runSandbox(scenario);
     for (const e of run.evidence) { setTimeline((t) => [...t, e]); setSelected(e); await sleep(350); }
     let gate = evidenceGate(run.evidence);
-    const a = await analyze({ data: { ticket, docsUrl, docsText, verdict: gate.verdict, evidence: gate.facts } });
+    const a = await analyze({ data: { ticket, docsText, verdict: gate.verdict, evidence: gate.facts } });
     if (a.expectedButton && a.expectedButton !== "Create Endpoint") {
       run = runSandbox(scenario, a.expectedButton);
       setTimeline(run.evidence);
@@ -84,7 +82,6 @@ function Dashboard() {
             <Textarea rows={3} value={ticket} onChange={(e) => setTicket(e.target.value)} />
           </Panel>
           <Panel title="02 · Tutorial / docs">
-            <Input placeholder="Optional docs URL (scraped with Firecrawl)" value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} />
             <Textarea rows={7} className="mt-2 font-mono text-xs" value={docsText} onChange={(e) => setDocsText(e.target.value)} />
           </Panel>
           <Panel title="03 · Sandbox scenario">

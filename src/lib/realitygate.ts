@@ -178,7 +178,7 @@ export function replayGuardrail(s: Scenario, button = "Create Endpoint"): Replay
 
 // ---------- Live website testing (any URL) ----------
 
-export type LiveVerdict = "PASS" | "APPLICATION_BUG" | "DOCUMENTATION_DRIFT" | "INCONCLUSIVE";
+export type LiveVerdict = "PASS" | "APPLICATION_BUG" | "INCONCLUSIVE";
 
 export type LiveEvidence = { id: string; kind: EvidenceKind; label: string; detail: string; ok: boolean; screenshot?: string };
 
@@ -190,10 +190,7 @@ export type LiveObservation = {
   expectedTexts: string[];
   forbiddenTexts: string[];
   agentOutcome?: "success" | "failure" | "blocked" | "incomplete" | "unknown";
-  documentedSteps?: string[];
-  observedSteps?: string[];
   evidenceIssues?: string[];
-  documentationMismatch?: { documented: string; observed: string } | undefined;
 };
 
 /** Conservative live gate: only reported observations can support a verdict. */
@@ -213,9 +210,6 @@ export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence
   if (errorsSeen.length > 0) return result("APPLICATION_BUG", 0.75);
   if (o.statusCode != null && o.statusCode >= 400) return result("INCONCLUSIVE", 0.25);
   if (o.agentOutcome !== "success") return result("INCONCLUSIVE", 0.2);
-  const mismatch = o.documentationMismatch;
-  const drift = mismatch && normalize(mismatch.documented) !== normalize(mismatch.observed) && text.includes(normalize(mismatch.observed));
-  if (drift) return result("DOCUMENTATION_DRIFT", 0.8);
   if (o.statusCode == null && !o.evidenceIssues) return result("INCONCLUSIVE", 0.2);
   if (o.expectedTexts.length > 0 && missing.length === 0) return result("PASS", 0.9);
   return result("INCONCLUSIVE", 0.35);

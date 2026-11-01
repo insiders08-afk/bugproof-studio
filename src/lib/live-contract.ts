@@ -37,7 +37,6 @@ export const AgentResult = z.object({
   steps: z.array(StepObservation).max(30),
   screenshots: z.array(z.object({ url: z.string().url().refine(v => v.startsWith("https://")).optional(), stepId: z.string().regex(/^[A-Za-z0-9_-]+$/).optional(), label: text, photos: PhotoObservation, readinessChecked: z.boolean() })).max(20),
   network: z.array(z.object({ url: PublicUrl, status: z.number().int().min(100).max(599), relevant: z.boolean() })).max(30).default([]),
-  documentation_mismatch: z.object({ documented: text, observed: text, documented_quote: text }).optional(),
   error: z.string().max(1000).default(""),
 });
 export type AgentObservation = z.infer<typeof AgentResult>;
@@ -53,13 +52,13 @@ export function safeObservedAction(step: z.infer<typeof StepObservation>): boole
   return true;
 }
 export function replayActions(result: AgentObservation): Action[] {
-  return result.steps.filter(safeObservedAction).map(s => s.action);
+  // Never splice missing/unsafe interactions out of a replay sequence.
+  return result.steps.length > 0 && result.steps.every(safeObservedAction) ? result.steps.map(s => s.action) : [];
 }
 export function observationIssues(result: AgentObservation): string[] {
   const issues: string[] = [];
-  if (result.steps.some(s => !safeObservedAction(s))) issues.push("A browser action failed, was unsafe, or lacked visible-target evidence.");
+  if (result.steps.some(s => !s.ok)) issues.push("A browser action failed.");
   if (!result.screenshots.length) issues.push("No screenshot evidence was returned.");
-  if (result.screenshots.some(s => !s.readinessChecked || s.photos.pending > 0)) issues.push("Photo readiness was not verified for every screenshot.");
   if (!result.final_text.trim()) issues.push("No final-page text was returned.");
   return issues;
 }

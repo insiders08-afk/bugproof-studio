@@ -8,7 +8,7 @@ export const SCENARIOS: { id: Scenario; label: string; hint: string }[] = [
 ];
 
 export const DEFAULT_TICKET =
-  "I can't create a webhook. The tutorial says to click Create Endpoint but nothing happens.";
+  "I cannot create a webhook. Clicking Create Endpoint returns an error instead of creating the endpoint.";
 
 export type EvidenceKind = "action" | "dom" | "network" | "screenshot";
 export type Evidence = {

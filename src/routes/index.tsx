@@ -33,7 +33,6 @@ function Home() {
   const run = useServerFn(runLiveTest);
   const [url, setUrl] = useState("https://");
   const [prompt, setPrompt] = useState("");
-  const [docsUrl, setDocsUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const [err, setErr] = useState("");
@@ -53,7 +52,7 @@ function Home() {
     submitting.current = true;
     setBusy(true); setErr("");
     try {
-      const r = await run({ data: { url: url.trim(), prompt: prompt.trim(), docsUrl: docsUrl.trim() } });
+      const r = await run({ data: { url: url.trim(), prompt: prompt.trim() } });
       const next = [r, ...history].slice(0, 30);
       setHistory(next); setOpen(r.id);
       try { localStorage.setItem(KEY, JSON.stringify(next)); }
@@ -78,8 +77,6 @@ function Home() {
       <form onSubmit={submit} className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-lg">
         <label className="block font-mono text-xs uppercase tracking-widest text-muted-foreground">Website URL</label>
         <Input aria-label="Website URL" type="url" required maxLength={2000} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" className="h-11 font-mono" />
-        <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">Documentation / tutorial URL (optional)</label>
-        <Input aria-label="Documentation URL" type="url" maxLength={2000} value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} placeholder="https://docs.example.com/guide" className="h-11 font-mono" />
         <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">What should we test?</label>
         <Textarea aria-label="What should we test?" required maxLength={2000} rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder='e.g. "Search for laptop and check that results appear" or "The pricing page should show a Pro plan"' />
@@ -118,7 +115,8 @@ function Report({ r }: { r: LiveReport }) {
     <div className="space-y-5 border-t border-border p-4 text-sm">
       {r.finalUrl && <p className="break-all font-mono text-xs text-muted-foreground">Final page: {r.finalUrl}</p>}
       <Block title="TinyFish run"><p className="font-mono text-xs">Status: {r.agentStatus}{r.tinyfishRunId ? ` · Run: ${r.tinyfishRunId}` : ""}</p>{r.tinyfishStreamUrl && <a className="text-info underline" href={r.tinyfishStreamUrl} target="_blank" rel="noreferrer">Open live browser stream ↗</a>}</Block>
-      {r.docsUrl && <Block title="Documentation comparison"><p className="break-all text-xs text-muted-foreground">{r.docsTitle || r.docsUrl}</p>{r.docsError ? <p className="text-destructive">{r.docsError}</p> : <p className="text-xs text-muted-foreground">{r.docsExcerpt}</p>}</Block>}
+      {r.providerSummary && <Block title="TinyFish conclusion"><p>{r.providerSummary}</p></Block>}
+      {r.replayUnavailable && <Block title="Replay limitations"><p>{r.replayUnavailable}</p></Block>}
       {r.narrative && <Block title="AI report"><p>{r.narrative}</p>
         {r.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{r.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}</Block>}
       {r.screenshots.length > 0 && <Block title="TinyFish screenshots">

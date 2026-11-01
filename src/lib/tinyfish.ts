@@ -1,5 +1,4 @@
 const AGENT_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
-const FETCH_URL = "https://api.fetch.tinyfish.ai";
 
 export type TinyFishEvent = Record<string, unknown> & {
   type?: string;
@@ -12,13 +11,6 @@ export type TinyFishAgentRun = {
   result: unknown;
   streamingUrl?: string | undefined;
   events: TinyFishEvent[];
-};
-
-export type TinyFishDocument = {
-  url: string;
-  finalUrl: string;
-  title: string;
-  text: string;
 };
 
 function getApiKey(): string {
@@ -145,56 +137,10 @@ export async function runTinyFishAgent(url: string, goal: string, outputSchema?:
   }
 }
 
-export async function fetchTinyFishDocument(url: string): Promise<TinyFishDocument> {
-  const response = await fetch(FETCH_URL, {
-    method: "POST",
-    headers: {
-      "X-API-Key": getApiKey(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ urls: [url], format: "markdown" }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!response.ok) {
-    throw new Error(await apiError(response));
-  }
-
-  const payload: unknown = await response.json();
-  if (!payload || typeof payload !== "object") {
-    throw new Error("TinyFish Fetch returned an invalid response");
-  }
-
-  const data = payload as {
-    results?: Array<Record<string, unknown>>;
-    errors?: unknown[];
-  };
-  const page = data.results?.[0];
-  if (!page) {
-    throw new Error("TinyFish could not fetch readable documentation.");
-  }
-
-  const text =
-    typeof page["text"] === "string"
-      ? page["text"]
-      : typeof page["markdown"] === "string"
-        ? page["markdown"]
-        : typeof page["content"] === "string"
-          ? page["content"]
-          : "";
-
-  if (!text.trim()) throw new Error("TinyFish fetched the documentation but returned no readable text");
-
-  return {
-    url: typeof page["url"] === "string" ? page["url"] : url,
-    finalUrl: typeof page["final_url"] === "string" ? page["final_url"] : url,
-    title: typeof page["title"] === "string" ? page["title"] : "",
-    text: text.slice(0, 20_000),
-  };
-}
-
 /** Retrieve actual provider artifacts; never expose API keys in image URLs. */
-export async function fetchTinyFishCaptures(runId: string): Promise<Array<{ stepId: string; image: string; label: string }>> {
+export type TinyFishArtifacts = { runId: string; status: string; result: unknown; steps: Array<{ stepId: string; label: string; status: string; image?: string | undefined }> };
+
+export async function fetchTinyFishArtifacts(runId: string): Promise<TinyFishArtifacts> {
   if (!/^[A-Za-z0-9_-]+$/.test(runId)) throw new Error("Invalid TinyFish run identifier.");
   const response = await fetch(`https://agent.tinyfish.ai/v1/runs/${encodeURIComponent(runId)}?screenshots=base64&html=none`, {
     headers: { "X-API-Key": getApiKey() }, signal: AbortSignal.timeout(20_000),
@@ -215,10 +161,19 @@ export async function fetchTinyFishCaptures(runId: string): Promise<Array<{ step
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   const payload: unknown = JSON.parse(raw);
   if (!payload || typeof payload !== "object" || !("steps" in payload) || !Array.isArray(payload.steps)) throw new Error("Invalid capture response.");
-  return payload.steps.slice(-12).flatMap((step: unknown) => {
-    if (!step || typeof step !== "object") return [];
-    const s = step as Record<string, unknown>;
-    if (typeof s["id"] !== "string" || typeof s["screenshot"] !== "string" || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s["screenshot"])) return [];
-    return [{ stepId: s["id"], image: s["screenshot"], label: typeof s["action"] === "string" ? s["action"].slice(0, 500) : "Browser step" }];
-  });
+  const data = payload as Record<string, unknown>;
+  if (data["run_id"] !== undefined && data["run_id"] !== runId) throw new Error("TinyFish capture run identifier does not match.");
+  return { runId, status: typeof data["status"] === "string" ? data["status"] : "UNKNOWN", result: data["result"],
+    steps: payload.steps.slice(0, 100).flatMap((step: unknown) => {
+      if (!step || typeof step !== "object") return [];
+      const s = step as Record<string, unknown>;
+      if (typeof s["id"] !== "string") return [];
+      const image = typeof s["screenshot"] === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s["screenshot"]) ? s["screenshot"] : undefined;
+      return [{ stepId: s["id"], label: typeof s["action"] === "string" ? s["action"].slice(0, 500) : "Browser step", status: typeof s["status"] === "string" ? s["status"] : "UNKNOWN", ...(image ? { image } : {}) }];
+    }) };
+}
+
+export async function fetchTinyFishCaptures(runId: string): Promise<Array<{ stepId: string; image: string; label: string }>> {
+  const artifacts = await fetchTinyFishArtifacts(runId);
+  return artifacts.steps.flatMap(s => s.image ? [{ stepId: s.stepId, image: s.image, label: s.label }] : []);
 }

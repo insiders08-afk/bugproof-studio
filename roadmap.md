@@ -5,4 +5,7 @@
 - [x] Restore evidence-backed Playwright exports and clear report/history handling.
 - [x] Run regression tests and attempt Ratan through TinyFish; access rejected and correctly saved as INCONCLUSIVE.
 - [x] Remove account-gated TinyFish settings and distinguish entitlement errors from authentication failures with safe provider diagnostics.
-- [ ] Rerun Ratan through RealityGate and verify completion, screenshot artifacts and photo readiness after the configuration fix.
+- [ ] Remove documentation URLs and scraping from every investigation path.
+- [ ] Normalize TinyFish results and native artifacts without discarding usable evidence.
+- [ ] Separate verdict requirements from replay eligibility and optional measurements.
+- [ ] Verify regression tests and a real booking investigation through the interface.

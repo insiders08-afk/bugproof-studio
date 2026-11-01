@@ -37,6 +37,11 @@ describe("TinyFish native evidence bridge", () => {
   it("retains failure when the report contract is invalid", () => {
     expect(bridgeTinyFish({ outcome: "failure" }).outcome).toBe("failure");
   });
+  it("keeps failed native steps as limitations without overriding success", () => {
+    const b = bridgeTinyFish(result, { ...artifacts, status: "FAILED", steps: [{ stepId: "failed-step", label: "Click", status: "FAILED" }] });
+    expect(b.issues).toContain("A native TinyFish step reported failure.");
+    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+  });
   it("uses native outcome only when the streamed outcome is absent or invalid", () => {
     expect(bridgeTinyFish({}, artifacts).outcome).toBe("success");
     expect(bridgeTinyFish({ outcome: "failure" }, artifacts).outcome).toBe("failure");

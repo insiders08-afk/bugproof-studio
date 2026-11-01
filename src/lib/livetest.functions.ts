@@ -84,6 +84,7 @@ export const runLiveTest = createServerFn({ method: "POST" })
       }
       const bridge = bridgeTinyFish(run.result ?? artifacts?.result, artifacts);
       providerOutcome = bridge.outcome; providerSummary = bridge.summary;
+      gate = liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: providerOutcome });
       issues.push(...bridge.issues); unknowns.push(...bridge.warnings);
       screenshots.push(...bridge.captures.map(c => c.image));
       for (const step of bridge.nativeSteps) push({ kind: "action", label: step.label, detail: `TinyFish native step ${step.stepId} · provider status: ${step.status}. This is a native action description, not a measured click result.`, ok: !["FAILED", "CANCELLED"].includes(step.status) });

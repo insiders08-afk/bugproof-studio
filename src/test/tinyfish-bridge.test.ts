@@ -33,6 +33,11 @@ describe("TinyFish native evidence bridge", () => {
     const b = bridgeTinyFish({ ...result, outcome: "COMPLETED" }, artifacts);
     expect(b.observation).toBeUndefined(); expect(b.captures).toHaveLength(2);
   });
+  it("retains all twelve provider success criteria rather than rejecting a legacy ten-item cap", () => {
+    const expected = Array.from({ length: 12 }, (_, i) => `Visible criterion ${i}`);
+    const b = bridgeTinyFish({ ...result, expected_texts: expected }, artifacts);
+    expect(b.observation?.expected_texts).toEqual(expected); expect(b.issues).toEqual([]);
+  });
   it("does not convert native descriptions into executable clicks", () => {
     const b = bridgeTinyFish(result, artifacts);
     if (!b.observation) throw new Error("Missing observation");

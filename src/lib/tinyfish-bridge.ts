@@ -2,7 +2,9 @@ import { z } from "zod";
 import { AgentResult, PublicUrl, StepObservation } from "@/lib/live-contract";
 import type { TinyFishArtifacts } from "@/lib/tinyfish";
 
-const core = AgentResult.pick({ outcome: true, final_url: true, page_title: true, expected_texts: true, final_text: true, summary: true, error: true });
+const core = AgentResult.pick({ outcome: true, final_url: true, page_title: true, expected_texts: true, final_text: true, summary: true, error: true }).extend({
+  expected_texts: z.array(z.string().trim().min(1).max(1000)).min(1).max(100),
+});
 const object = (v: unknown): Record<string, unknown> => {
   if (typeof v === "string") { try { return object(JSON.parse(v)); } catch { return {}; } }
   return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};

@@ -4,7 +4,7 @@ import { parseTinyFishSseBlock } from "@/lib/tinyfish";
 
 describe("TinyFish SSE parsing", () => {
   it("parses a data event", () => {
-    expect(parseTinyFishSseBlock('event: message\\ndata: {"type":"COMPLETE","status":"COMPLETED"}')).toEqual({ type: "COMPLETE", status: "COMPLETED" });
+    expect(parseTinyFishSseBlock('event: message\ndata: {"type":"COMPLETE","status":"COMPLETED"}')).toEqual({ type: "COMPLETE", status: "COMPLETED" });
   });
   it("ignores empty and DONE events", () => {
     expect(parseTinyFishSseBlock(": keepalive")).toBeNull();

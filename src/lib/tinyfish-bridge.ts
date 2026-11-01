@@ -56,26 +56,23 @@ export const LIVE_OUTPUT_SCHEMA = {
   properties: {
     outcome: { type: "string", enum: ["success", "failure", "blocked", "incomplete", "unknown"] },
     final_url: { type: "string" }, page_title: { type: "string" }, summary: { type: "string" },
-    expected_texts: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 10 },
-    final_text: { type: "string", description: "Actual visible final-page text, quoted verbatim rather than a workflow summary." },
+    expected_texts: { type: "array", items: { type: "string" } },
+    final_text: { type: "string" },
     visible_errors: { type: "array", items: { type: "string" } }, error: { type: "string" },
     steps: { type: "array", items: { type: "object", required: ["action", "targetVisible", "beforeText", "afterText", "ok"], properties: {
-      action: { anyOf: [
-        { type: "object", required: ["type", "text"], properties: { type: { const: "click" }, text: { type: "string" } } },
-        { type: "object", required: ["type", "label", "text"], properties: { type: { const: "fill" }, label: { type: "string" }, text: { type: "string" } } },
-        { type: "object", required: ["type", "key"], properties: { type: { const: "press" }, key: { enum: ["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"] } } },
-        { type: "object", required: ["type", "direction"], properties: { type: { const: "scroll" }, direction: { enum: ["up", "down"] } } },
-        { type: "object", required: ["type", "milliseconds"], properties: { type: { const: "wait" }, milliseconds: { type: "integer", minimum: 250, maximum: 5000 } } },
-      ] }, targetVisible: { type: "boolean" }, beforeText: { type: "string" }, afterText: { type: "string" }, ok: { type: "boolean" }, error: { type: "string" },
+      action: { type: "object", required: ["type"], properties: {
+        type: { type: "string", enum: ["click", "fill", "press", "scroll", "wait"] }, text: { type: "string" }, label: { type: "string" },
+        key: { type: "string", enum: ["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"] }, direction: { type: "string", enum: ["up", "down"] }, milliseconds: { type: "integer" },
+      } }, targetVisible: { type: "boolean" }, beforeText: { type: "string" }, afterText: { type: "string" }, ok: { type: "boolean" }, error: { type: "string" },
     } } },
     screenshots: { type: "array", items: { type: "object", required: ["label", "photos", "readinessChecked"], properties: {
-      stepId: { type: "string", description: "Native provider step identifier, only if known." }, label: { type: "string" }, readinessChecked: { type: "boolean" },
+      stepId: { type: "string" }, label: { type: "string" }, readinessChecked: { type: "boolean" },
       photos: { type: "object", required: ["total", "loaded", "pending", "broken"], properties: {
-        total: { type: "integer", minimum: 0 }, loaded: { type: "integer", minimum: 0 }, pending: { type: "integer", minimum: 0 }, broken: { type: "integer", minimum: 0 },
+        total: { type: "integer" }, loaded: { type: "integer" }, pending: { type: "integer" }, broken: { type: "integer" },
       } },
     } } },
     network: { type: "array", items: { type: "object", required: ["url", "status", "relevant"], properties: {
-      url: { type: "string" }, status: { type: "integer", minimum: 100, maximum: 599 }, relevant: { type: "boolean" },
+      url: { type: "string" }, status: { type: "integer" }, relevant: { type: "boolean" },
     } } },
   },
 };

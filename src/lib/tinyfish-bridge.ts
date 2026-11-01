@@ -14,6 +14,13 @@ const array = (v: unknown) => Array.isArray(v) ? v : [];
 /** Native artifacts and structured conclusions remain separate sources. Never infer clicks from prose. */
 export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
   const raw = { ...object(result) };
+  // Outcome decoding must not depend on the optional report/evidence contract.
+  const decodeOutcome = (value: unknown) => AgentResult.shape.outcome.safeParse(typeof value === "string" ? value.trim().toLowerCase() : value);
+  const primaryOutcome = decodeOutcome(raw["outcome"]);
+  const nativeOutcome = decodeOutcome(object(artifacts?.result)["outcome"]);
+  const outcome = primaryOutcome.success ? primaryOutcome.data : nativeOutcome.success ? nativeOutcome.data : "unknown";
+  const summary = typeof raw["summary"] === "string" ? raw["summary"].slice(0, 4000) : typeof object(artifacts?.result)["summary"] === "string" ? String(object(artifacts?.result)["summary"]).slice(0, 4000) : "";
+  if (primaryOutcome.success) raw["outcome"] = primaryOutcome.data;
   // Providers sometimes serialize an absent error as a sentinel rather than an empty string.
   if (typeof raw["error"] === "string" && /^(none|null|n\/a|no error|no errors)$/i.test(raw["error"].trim())) raw["error"] = "";
   const validation = core.safeParse(raw);
@@ -51,7 +58,7 @@ export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
     else if (measurement.photos.pending > 0 || measurement.photos.broken > 0) warnings.push(`Photos at step ${capture.stepId}: ${measurement.photos.pending} pending, ${measurement.photos.broken} unavailable.`);
   }
   if (!network.length) warnings.push("HTTP status was not measured; no status was invented.");
-  return { observation: validation.success ? { ...validation.data, steps, screenshots, network, visible_errors: visibleErrors } : undefined,
+  return { outcome, summary, observation: validation.success ? { ...validation.data, steps, screenshots, network, visible_errors: visibleErrors } : undefined,
     nativeSteps, captures, warnings: [...new Set(warnings)], issues };
 }
 

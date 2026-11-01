@@ -178,7 +178,7 @@ export function replayGuardrail(s: Scenario, button = "Create Endpoint"): Replay
 
 // ---------- Live website testing (any URL) ----------
 
-export type LiveVerdict = "PASS" | "APPLICATION_BUG" | "INCONCLUSIVE";
+export type LiveVerdict = "PASS" | "FAILED" | "APPLICATION_BUG" | "INCONCLUSIVE";
 
 export type LiveEvidence = { id: string; kind: EvidenceKind; label: string; detail: string; ok: boolean; screenshot?: string };
 
@@ -193,7 +193,7 @@ export type LiveObservation = {
   evidenceIssues?: string[];
 };
 
-/** Conservative live gate: only reported observations can support a verdict. */
+/** Map TinyFish's explicit test outcome only; measurements are informational, not vetoes. */
 export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence: number; found: string[]; missing: string[]; errorsSeen: string[] } {
   const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
   const text = normalize(o.pageText);
@@ -201,16 +201,8 @@ export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence
   const missing = o.expectedTexts.filter((value) => !normalize(value) || !text.includes(normalize(value)));
   const errorsSeen = o.forbiddenTexts.filter((value) => normalize(value) && text.includes(normalize(value)));
   const result = (verdict: LiveVerdict, confidence: number) => ({ verdict, confidence, found, missing, errorsSeen });
-  if (o.scrapeError || o.actionsError || o.evidenceIssues?.length || o.agentOutcome === "blocked" || o.agentOutcome === "incomplete" || o.agentOutcome === "unknown") return result("INCONCLUSIVE", 0.2);
-  if (o.agentOutcome === "failure" && errorsSeen.length > 0) return result("APPLICATION_BUG", 0.8);
-  if (o.agentOutcome === "failure") return result("INCONCLUSIVE", 0.35);
-  const validStatus = o.statusCode != null && Number.isInteger(o.statusCode) && o.statusCode >= 100 && o.statusCode <= 599;
-  if (o.statusCode != null && !validStatus) return result("INCONCLUSIVE", 0.2);
-  if (validStatus && o.statusCode != null && o.statusCode >= 500) return result("APPLICATION_BUG", 0.95);
-  if (errorsSeen.length > 0) return result("APPLICATION_BUG", 0.75);
-  if (o.statusCode != null && o.statusCode >= 400) return result("INCONCLUSIVE", 0.25);
-  if (o.agentOutcome !== "success") return result("INCONCLUSIVE", 0.2);
-  if (o.statusCode == null && !o.evidenceIssues) return result("INCONCLUSIVE", 0.2);
-  if (o.expectedTexts.length > 0 && missing.length === 0) return result("PASS", 0.9);
-  return result("INCONCLUSIVE", 0.35);
+  // Retain the numeric field for historical report compatibility, not as measured confidence.
+  if (o.agentOutcome === "success") return result("PASS", 1);
+  if (o.agentOutcome === "failure") return result("FAILED", 1);
+  return result("INCONCLUSIVE", 0);
 }

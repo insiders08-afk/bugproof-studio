@@ -26,8 +26,29 @@ describe("TinyFish native evidence bridge", () => {
     expect(o.network).toEqual([]); expect(o.screenshots).toEqual([]);
   });
   it("does not pass solely on a completion status", () => {
-    expect(bridgeTinyFish({ outcome: "success" }, artifacts).issues.length).toBeGreaterThan(0);
+    expect(bridgeTinyFish({ status: "COMPLETED" }, { ...artifacts, result: null }).outcome).toBe("unknown");
     expect(bridgeTinyFish(result).issues).toContain("No native TinyFish workflow steps were retrieved.");
+  });
+  it("retains explicit success when the report contract is invalid", () => {
+    const b = bridgeTinyFish({ outcome: "success", summary: "Requested check succeeded" });
+    expect(b.observation).toBeUndefined(); expect(b.outcome).toBe("success"); expect(b.summary).toBe("Requested check succeeded");
+    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+  });
+  it("retains failure when the report contract is invalid", () => {
+    expect(bridgeTinyFish({ outcome: "failure" }).outcome).toBe("failure");
+  });
+  it("keeps failed native steps as limitations without overriding success", () => {
+    const b = bridgeTinyFish(result, { ...artifacts, status: "FAILED", steps: [{ stepId: "failed-step", label: "Click", status: "FAILED" }] });
+    expect(b.issues).toContain("A native TinyFish step reported failure.");
+    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+  });
+  it("uses native outcome only when the streamed outcome is absent or invalid", () => {
+    expect(bridgeTinyFish({}, artifacts).outcome).toBe("success");
+    expect(bridgeTinyFish({ outcome: "failure" }, artifacts).outcome).toBe("failure");
+  });
+  it("normalizes outcome casing without interpreting completion as success", () => {
+    expect(bridgeTinyFish({ outcome: " SUCCESS " }).outcome).toBe("success");
+    expect(bridgeTinyFish({ outcome: "COMPLETED" }).outcome).toBe("unknown");
   });
   it("does not accept invented screenshot URLs as native pixels", () => {
     const b = bridgeTinyFish({ ...result, screenshots: [{ url: "https://example.com/image.jpg" }] });

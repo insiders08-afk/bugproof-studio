@@ -30,10 +30,10 @@ describe("TinyFish production contract", () => {
     const r = result(); r.screenshots[0] = { url: "https://captures.example.com/shot.jpg", label: "Panel", readinessChecked: true, photos: { total: 3, loaded: 2, pending: 0, broken: 1 } };
     expect(observationIssues(r)).toEqual([]);
   });
-  it("makes missing evidence inconclusive even if agent says success", () => {
-    expect(liveGate({ statusCode: 200, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: ["No screenshot evidence"] }).verdict).toBe("INCONCLUSIVE");
+  it("does not let missing evidence override TinyFish success", () => {
+    expect(liveGate({ statusCode: 200, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: ["No screenshot evidence"] }).verdict).toBe("PASS");
   });
-  it("rejects invented HTTP status codes", () => {
-    expect(liveGate({ statusCode: 999, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success" }).verdict).toBe("INCONCLUSIVE");
+  it("ignores invalid HTTP measurements for the verdict", () => {
+    expect(liveGate({ statusCode: 999, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success" }).verdict).toBe("PASS");
   });
 });

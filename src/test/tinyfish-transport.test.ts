@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
+import { fetchTinyFishCaptures, runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function mockStream(chunks: string[]) {
@@ -34,5 +34,17 @@ describe("TinyFish stream lifecycle", () => {
     const call = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(String(call?.[1]?.body));
     expect(body.capture_config.screenshots).toBe(true); expect(body.agent_config.max_steps).toBe(30); expect(body.agent_config.max_duration_seconds).toBe(180);
+  });
+  it("uses provider screenshot pixels rather than agent-provided URLs", async () => {
+    vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
+    const fetcher = vi.fn(async () => Response.json({ steps: [{ id: "step-1", action: "Open venue", screenshot: "data:image/png;base64,AAAA" }, { id: "fake", screenshot: "https://invented.example.com/photo.png" }] }));
+    vi.stubGlobal("fetch", fetcher);
+    expect(await fetchTinyFishCaptures("run-1")).toEqual([{ stepId: "step-1", image: "data:image/png;base64,AAAA", label: "Open venue" }]);
+    expect(fetcher.mock.calls.length).toBe(1);
+  });
+  it("rejects unsafe capture identifiers before making a request", async () => {
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    await expect(fetchTinyFishCaptures("../../other")).rejects.toThrow("Invalid TinyFish run identifier");
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

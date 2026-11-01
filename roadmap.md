@@ -1,6 +1,7 @@
 - [x] Replace guessed clicks with screenshot-grounded, visible-text actions and bounded photo waits.
 - [x] Keep failed actions inconclusive and preserve evidence; add regression tests (19 passed).
 - [x] Rerun the Ratan Box Cricket flow through RealityGate and inspect its report/screenshots (PASS; three venue photos loaded; date/slot panel visible).
-- [ ] Harden TinyFish transport, safe inputs, structured observations and deterministic verdicts.
-- [ ] Restore evidence-backed Playwright exports and clear report/history handling.
-- [ ] Run regression tests and rerun Ratan through TinyFish; disclose remaining production limitations.
+- [x] Harden TinyFish transport, safe inputs, structured observations and deterministic verdicts.
+- [x] Restore evidence-backed Playwright exports and clear report/history handling.
+- [x] Run regression tests and attempt Ratan through TinyFish; access rejected and correctly saved as INCONCLUSIVE.
+- [ ] Verify successful TinyFish workflow and real capture/step correlation — blocked by TinyFish rejecting configured credential/access.

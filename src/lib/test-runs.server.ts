@@ -4,7 +4,7 @@ import { LIVE_OUTPUT_SCHEMA } from './tinyfish-bridge';
 import { testGoal } from './test-goal';
 import type { Json, Tables } from '@/integrations/supabase/types';
 
-export type RunItem = Pick<Tables<'test_runs'>, 'id' | 'url' | 'prompt' | 'status' | 'created_at' | 'error'> & { verdict?: string };
+export type RunItem = Pick<Tables<'test_runs'>, 'id' | 'url' | 'prompt' | 'status' | 'created_at' | 'error'> & { verdict?: string | undefined };
 const terminal = new Set(['COMPLETED', 'FAILED', 'CANCELLED', 'TIMED_OUT']);
 export function assertOwner(row: { user_id: string } | null, userId: string) {
   if (!row || row.user_id !== userId) throw new Error('Test not found.');
@@ -69,7 +69,7 @@ export async function refreshRun(userId: string, id: string) {
     const replacements = new Map<string, string>();
     for (const [i, image] of report.screenshots.entries()) {
       const match = image.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
-      if (!match) continue;
+      if (!match?.[1] || !match[2]) continue;
       const path = `${userId}/${row.id}/${i}.${match[1]}`;
       const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0));
       const { error: uploadError } = await db.storage.from('test-captures').upload(path, bytes, { contentType: `image/${match[1]}`, upsert: true });

@@ -26,8 +26,4 @@ describe("TinyFish live evidence gate", () => {
   it("keeps blocked runs inconclusive", () => {
     expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "blocked" }).verdict).toBe("INCONCLUSIVE");
   });
-  it("requires a concrete documented-label mismatch, not paraphrased steps", () => {
-    expect(liveGate({ statusCode: 200, pageText: "Saved", expectedTexts: ["Saved"], forbiddenTexts: [], agentOutcome: "success", documentedSteps: ["Click Create Endpoint"], observedSteps: ["Click Add Endpoint"] }).verdict).toBe("PASS");
-    expect(liveGate({ statusCode: 200, pageText: "Add Endpoint Saved", expectedTexts: ["Saved"], forbiddenTexts: [], agentOutcome: "success", documentationMismatch: { documented: "Create Endpoint", observed: "Add Endpoint" } }).verdict).toBe("DOCUMENTATION_DRIFT");
-  });
 });

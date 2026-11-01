@@ -42,8 +42,10 @@ function Home() {
     queryFn: async () => { const result = await Promise.all(active.map(r => poll({ data: { id: r.id } }))); await queryClient.invalidateQueries({ queryKey: ['tests', user?.id] }); return result; }, refetchInterval: 5000, retry: 1 });
   async function signIn() {
     setError('');
-    const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin });
-    if (result.error) setError(result.error.message || 'Google sign-in could not be completed.');
+    try {
+      const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin });
+      if (result.error) setError(result.error.message || 'Google sign-in could not be completed.');
+    } catch { setError('Google sign-in could not be completed. Please try again.'); }
   }
   async function signOut() {
     await queryClient.cancelQueries(); queryClient.clear();

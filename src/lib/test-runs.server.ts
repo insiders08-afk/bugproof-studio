@@ -30,7 +30,11 @@ export async function startRun(userId: string, input: { url: string; prompt: str
   try {
     const providerId = await startTinyFishAgent(input.url, testGoal(input.url, input.prompt), LIVE_OUTPUT_SCHEMA);
     const { data: updated, error: updateError } = await db.from('test_runs').update({ provider_run_id: providerId, status: 'RUNNING' }).eq('id', row.id).eq('user_id', userId).select().single();
-    if (updateError || !updated) throw new Error(`Test started but its provider identifier could not be saved. Do not repeat automatically. Recovery identifier: ${providerId}`);
+    if (updateError || !updated) {
+      const { error: recoveryError } = await db.from('test_runs').update({ provider_run_id: providerId, status: 'RUNNING' }).eq('id', row.id).eq('user_id', userId);
+      if (!recoveryError) return { ...item(row), status: 'RUNNING' };
+      throw new Error('Test started but recovery details could not be saved. Do not repeat automatically.');
+    }
     return item(updated);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Test startup was interrupted.';
@@ -93,6 +97,7 @@ export async function readReport(userId: string, id: string): Promise<LiveReport
   if (!row?.report) return null;
   const report = row.report as unknown as LiveReport;
   const paths = report.screenshots.filter(s => !s.startsWith('data:'));
+  if (paths.some(path => !path.startsWith(`${userId}/${row.id}/`) || path.includes('..'))) throw new Error('Invalid private screenshot path.');
   const replacements = new Map<string, string>();
   if (paths.length) {
     const { data, error } = await db.storage.from('test-captures').createSignedUrls(paths, 3600);

@@ -11,7 +11,7 @@ import { useAccount } from '@/components/AccountSession';
 import { TestReport } from '@/components/TestReport';
 import { lovable } from '@/integrations/lovable';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowUpRight, ArrowRight, RotateCcw, LogOut, ChevronDown, ChevronUp, LoaderCircle } from 'lucide-react';
+import { ArrowRight, RotateCcw, LogOut, ChevronDown, ChevronUp, LoaderCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 export const Route = createFileRoute('/')({
   head: () => ({ meta: [
@@ -22,6 +22,15 @@ export const Route = createFileRoute('/')({
     { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary' },
   ] }), component: Home,
 });
+// A stale or just-rotated sign-in token makes private requests fail once; refresh it and retry.
+async function withFreshSession<T>(call: () => Promise<T>): Promise<T> {
+  try { return await call(); } catch (e) {
+    if (!(e instanceof Error) || !/unauthori[sz]ed|401/i.test(e.message)) throw e;
+    const { error } = await supabase.auth.refreshSession();
+    if (error) throw new Error('Your sign-in expired. Please sign out and sign in again.');
+    return await call();
+  }
+}
 const activeStatuses = new Set(['STARTING', 'RUNNING', 'QUEUED', 'PENDING', 'REPORTING', 'IN_PROGRESS']);
 function Home() {
   const { user, ready } = useAccount();
@@ -35,11 +44,11 @@ function Home() {
   const lock = useRef(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<string | null>(null);
-  const history = useQuery({ queryKey: ['tests', user?.id], queryFn: () => list(), enabled: Boolean(user), refetchInterval: 8000 });
+  const history = useQuery({ queryKey: ['tests', user?.id], queryFn: () => withFreshSession(() => list()), enabled: Boolean(user), refetchInterval: 8000 });
   const rows: RunItem[] = history.data ?? [];
   const active = rows.filter(r => activeStatuses.has(r.status));
   const progress = useQuery({ queryKey: ['test-progress', user?.id, active.map(r => r.id).join(',')], enabled: Boolean(user) && active.length > 0,
-    queryFn: async () => { const result = await Promise.all(active.map(r => poll({ data: { id: r.id } }))); await queryClient.invalidateQueries({ queryKey: ['tests', user?.id] }); return result; }, refetchInterval: 5000, retry: 1 });
+    queryFn: async () => { const result = await withFreshSession(() => Promise.all(active.map(r => poll({ data: { id: r.id } })))); await queryClient.invalidateQueries({ queryKey: ['tests', user?.id] }); return result; }, refetchInterval: 5000, retry: 1 });
   async function signIn() {
     setError('');
     try {
@@ -66,7 +75,7 @@ function Home() {
   return <div className="mx-auto max-w-4xl px-5 pb-16 pt-6 sm:px-8 sm:pt-8">
     <header className="flex items-center justify-between gap-3 border-b-2 border-border pb-5">
       <Link to="/" className="flex items-center gap-2 font-mono text-sm font-semibold"><span className="brand-mark" aria-hidden="true">R/G</span><span className="hidden sm:inline">REALITYGATE</span></Link>
-      <nav className="flex items-center gap-2"><Button asChild variant="ghost" size="sm"><Link to="/lab">Lab<ArrowUpRight /></Link></Button>{ready && (user ? <Button variant="outline" size="sm" onClick={signOut}><LogOut />Sign out</Button> : <Button variant="outline" size="sm" onClick={signIn}>Sign in<ArrowRight /></Button>)}</nav>
+      <nav className="flex items-center gap-2">{ready && (user ? <Button variant="outline" size="sm" onClick={signOut}><LogOut />Sign out</Button> : <Button variant="outline" size="sm" onClick={signIn}>Sign in<ArrowRight /></Button>)}</nav>
     </header>
     <section className="pb-8 pt-10 sm:pt-14"><p className="mb-3 font-mono text-xs font-semibold uppercase text-secondary">RealityGate</p><h1 className="text-4xl font-bold leading-tight sm:text-5xl">Website tests.<br /><span className="text-primary">Real answers.</span></h1></section>
     <form onSubmit={e => { e.preventDefault(); void start({ url: url.trim(), prompt: prompt.trim() }); }} className="space-y-4 border-y-2 border-border py-6">

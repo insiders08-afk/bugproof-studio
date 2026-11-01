@@ -1,6 +1,6 @@
 # RealityGate
 
-RealityGate investigates real website workflows and records evidence-backed verdicts. External documentation URLs and scraping are not supported; the sandbox lab retains its built-in tutorial fixture.
+RealityGate investigates real website workflows and records evidence-backed verdicts. External documentation URLs and scraping are not supported.
 
 ## Live investigation pipeline
 
@@ -9,7 +9,7 @@ RealityGate investigates real website workflows and records evidence-backed verd
 - **TinyFish verdict**: its explicit `outcome` alone determines PASS (`success`), FAILED (`failure`), or INCONCLUSIVE (`blocked`, `incomplete`, `unknown`, or absent). Execution status `COMPLETED` alone is not test success. FAILED means the requested test failed, not independent proof of an application bug.
 - **Lovable AI** (`LOVABLE_API_KEY`, optional): writes an engineering narrative from recorded evidence. It does not decide or override the verdict.
 
-The live homepage does not use the sandbox browser environment. Sandbox/lab routes are intentionally outside this migration.
+The old simulated lab and sandbox pages have been removed.
 
 ## Reliability and release boundaries
 

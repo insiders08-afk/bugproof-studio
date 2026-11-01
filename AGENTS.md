@@ -13,4 +13,5 @@
 - Real-site runs use one TinyFish run-sse session with bounded duration and screenshot capture enabled; preserving the run identifier and never retrying POST automatically avoids losing failure state or duplicating billable actions. Past tests remain in browser localStorage (no backend yet).
 - TinyFish results must satisfy src/lib/live-contract.ts before liveGate can confirm a verdict; final-page text, visible-target observations and screenshot readiness prevent agent completion or summaries from masquerading as proof.
 - Export only safe observed actions as Playwright replay candidates, not independently executed guardrails; TinyFish observations are provider-reported and must remain labelled as such.
+- Retrieve screenshot pixels via authenticated TinyFish run lookup with inline base64 and correlate readiness by provider step ID; never expose credentials or trust agent-invented screenshot URLs.
 - Browser commands and replay recipes share src/lib/live-browser.ts so observed actions and exported tests follow the same targeting and readiness rules.

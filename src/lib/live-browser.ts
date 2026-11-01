@@ -77,11 +77,16 @@ console.log("RG_OBSERVATION:" + JSON.stringify({ ...observation, statusCode: nav
 export function recipe(url: string, actions: Action[], expectedTexts: string[]) {
   return `import { test, expect } from "@playwright/test";
 
-test("verified website flow", async ({ page }) => {
+test("observed website flow — replay candidate", async ({ page }, testInfo) => {
+  test.setTimeout(180000);
+  page.on("response", response => {
+    if (response.status() >= 400) testInfo.annotations.push({ type: "http-error", description: response.status() + " " + response.url() });
+  });
   const response = await page.goto(${JSON.stringify(url)}, { waitUntil: "domcontentloaded" });
   expect(response?.status()).toBeLessThan(400);
   ${settleCode}
   ${actions.map(a => `${actionCode(a)}\n${settleCode}`).join("\n")}
   ${expectedTexts.map(t => `await expect(page.getByText(${literalRegex(t)}).first()).toBeVisible();`).join("\n  ")}
+  await testInfo.attach("final-page", { body: await page.screenshot({ fullPage: false }), contentType: "image/png" });
 });`;
 }

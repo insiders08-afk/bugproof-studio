@@ -192,28 +192,31 @@ export type LiveObservation = {
   agentOutcome?: "success" | "failure" | "blocked" | "incomplete" | "unknown";
   documentedSteps?: string[];
   observedSteps?: string[];
+  evidenceIssues?: string[];
+  documentationMismatch?: { documented: string; observed: string } | undefined;
 };
 
 /** Conservative live gate: only reported observations can support a verdict. */
 export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence: number; found: string[]; missing: string[]; errorsSeen: string[] } {
-  const normalize = (value: string) => value.toLowerCase().replace(/\\s+/g, " ").trim();
+  const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
   const text = normalize(o.pageText);
   const found = o.expectedTexts.filter((value) => normalize(value) && text.includes(normalize(value)));
   const missing = o.expectedTexts.filter((value) => !normalize(value) || !text.includes(normalize(value)));
   const errorsSeen = o.forbiddenTexts.filter((value) => normalize(value) && text.includes(normalize(value)));
   const result = (verdict: LiveVerdict, confidence: number) => ({ verdict, confidence, found, missing, errorsSeen });
-  if (o.scrapeError || o.actionsError || o.agentOutcome === "blocked" || o.agentOutcome === "incomplete" || o.agentOutcome === "unknown") return result("INCONCLUSIVE", 0.2);
+  if (o.scrapeError || o.actionsError || o.evidenceIssues?.length || o.agentOutcome === "blocked" || o.agentOutcome === "incomplete" || o.agentOutcome === "unknown") return result("INCONCLUSIVE", 0.2);
   if (o.agentOutcome === "failure" && errorsSeen.length > 0) return result("APPLICATION_BUG", 0.8);
   if (o.agentOutcome === "failure") return result("INCONCLUSIVE", 0.35);
-  if (o.statusCode != null && o.statusCode >= 500) return result("APPLICATION_BUG", 0.95);
+  const validStatus = o.statusCode != null && Number.isInteger(o.statusCode) && o.statusCode >= 100 && o.statusCode <= 599;
+  if (o.statusCode != null && !validStatus) return result("INCONCLUSIVE", 0.2);
+  if (validStatus && o.statusCode != null && o.statusCode >= 500) return result("APPLICATION_BUG", 0.95);
   if (errorsSeen.length > 0) return result("APPLICATION_BUG", 0.75);
   if (o.statusCode != null && o.statusCode >= 400) return result("INCONCLUSIVE", 0.25);
   if (o.agentOutcome !== "success") return result("INCONCLUSIVE", 0.2);
-  const documented = (o.documentedSteps ?? []).map(normalize).filter(Boolean);
-  const observed = (o.observedSteps ?? []).map(normalize).filter(Boolean);
-  const drift = documented.length > 0 && observed.length > 0 && documented.some((step) => !observed.some((actual) => actual.includes(step) || step.includes(actual)));
+  const mismatch = o.documentationMismatch;
+  const drift = mismatch && normalize(mismatch.documented) !== normalize(mismatch.observed) && text.includes(normalize(mismatch.observed));
   if (drift) return result("DOCUMENTATION_DRIFT", 0.8);
+  if (o.statusCode == null && !o.evidenceIssues) return result("INCONCLUSIVE", 0.2);
   if (o.expectedTexts.length > 0 && missing.length === 0) return result("PASS", 0.9);
-  if (o.expectedTexts.length === 0 && o.agentOutcome === "success") return result("PASS", 0.7);
   return result("INCONCLUSIVE", 0.35);
 }

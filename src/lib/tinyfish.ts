@@ -33,10 +33,44 @@ export class TinyFishRunError extends Error {
   constructor(message: string, public run: TinyFishAgentRun) { super(message); this.name = "TinyFishRunError"; }
 }
 
-function apiError(status: number): string {
-  if (status === 401 || status === 403) return "TinyFish rejected the configured credential or access permissions.";
-  if (status === 429) return "TinyFish is rate limited. Wait before starting another test.";
-  return `TinyFish service request failed (${status}). Try again later.`;
+async function apiError(response: Response): Promise<string> {
+  const status = response.status;
+  let code = "UNKNOWN_ERROR";
+  let detail = "";
+  const reader = response.body?.getReader();
+  if (reader) {
+    try {
+      const decoder = new TextDecoder();
+      let raw = "";
+      let bytes = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 16_000) break;
+        raw += decoder.decode(value, { stream: true });
+      }
+      const payload: unknown = JSON.parse(raw + decoder.decode());
+      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+        const outer = payload as Record<string, unknown>;
+        const candidate = outer["error"] ?? outer;
+        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+          const error = candidate as Record<string, unknown>;
+          if (typeof error["code"] === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(error["code"])) code = error["code"];
+          // Only expose recognized capability diagnostics, never arbitrary provider/page content.
+          const message = typeof error["message"] === "string" ? error["message"] : "";
+          if (/not enabled for custom max steps/i.test(message)) detail = " Custom step limits require TinyFish beta access.";
+          else if (/element/i.test(message) && /not enabled|beta|entitlement|access/i.test(message)) detail = " Element capture requires additional TinyFish account access.";
+        }
+      }
+    } catch { /* Non-JSON or oversized error bodies use safe status diagnostics. */ }
+    finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  }
+  if (status === 401) return `TinyFish authentication failed (${code}). Check the configured API key.`;
+  if (status === 403) return `TinyFish permission/entitlement error (${code}).${detail || " Check account access and requested capabilities."}`;
+  if (status === 400) return `TinyFish invalid request (${code}). Check the requested settings.`;
+  if (status === 429) return `TinyFish is rate limited (${code}). Wait before starting another test.`;
+  return `TinyFish API error HTTP ${status} (${code}). Try again later.`;
 }
 
 /** Parse one SSE event block. TinyFish sends JSON in one or more data: lines. */
@@ -63,12 +97,12 @@ export async function runTinyFishAgent(url: string, goal: string, outputSchema?:
     const response = await fetch(AGENT_URL, {
       method: "POST",
       headers: { "X-API-Key": getApiKey(), "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ url, goal, agent_config: { max_steps: 30, max_duration_seconds: 180 },
-        capture_config: { screenshots: true, snapshots: true, elements: true },
+      body: JSON.stringify({ url, goal, agent_config: { max_duration_seconds: 180 },
+        capture_config: { screenshots: true },
         ...(outputSchema ? { output_schema: outputSchema } : {}) }),
       signal: AbortSignal.timeout(210_000),
     });
-    if (!response.ok) { await response.body?.cancel(); throw new Error(apiError(response.status)); }
+    if (!response.ok) throw new Error(await apiError(response));
     if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) throw new Error("TinyFish did not return an event stream.");
     reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -123,8 +157,7 @@ export async function fetchTinyFishDocument(url: string): Promise<TinyFishDocume
   });
 
   if (!response.ok) {
-    await response.body?.cancel();
-    throw new Error(apiError(response.status));
+    throw new Error(await apiError(response));
   }
 
   const payload: unknown = await response.json();
@@ -166,7 +199,7 @@ export async function fetchTinyFishCaptures(runId: string): Promise<Array<{ step
   const response = await fetch(`https://agent.tinyfish.ai/v1/runs/${encodeURIComponent(runId)}?screenshots=base64&html=none`, {
     headers: { "X-API-Key": getApiKey() }, signal: AbortSignal.timeout(20_000),
   });
-  if (!response.ok) { await response.body?.cancel(); throw new Error(apiError(response.status)); }
+  if (!response.ok) throw new Error(await apiError(response));
   const reader = response.body?.getReader();
   if (!reader) throw new Error("No capture response returned.");
   let raw = ""; let bytes = 0; const decoder = new TextDecoder();

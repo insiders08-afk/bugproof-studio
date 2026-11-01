@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchTinyFishCaptures, runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
+import { fetchTinyFishDocument, fetchTinyFishCaptures, runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function mockStream(chunks: string[]) {
@@ -33,7 +33,11 @@ describe("TinyFish stream lifecycle", () => {
     await runTinyFishAgent("https://example.com", "Inspect page");
     const call = vi.mocked(fetch).mock.calls[0];
     const body = JSON.parse(String(call?.[1]?.body));
-    expect(body.capture_config.screenshots).toBe(true); expect(body.agent_config.max_steps).toBe(30); expect(body.agent_config.max_duration_seconds).toBe(180);
+    expect(body.capture_config).toEqual({ screenshots: true });
+    expect(body.agent_config).toEqual({ max_duration_seconds: 180 });
+    expect(body.agent_config).not.toHaveProperty("max_steps");
+    expect(body.capture_config).not.toHaveProperty("elements");
+    expect(body.capture_config).not.toHaveProperty("snapshots");
   });
   it("uses provider screenshot pixels rather than agent-provided URLs", async () => {
     vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
@@ -46,5 +50,30 @@ describe("TinyFish stream lifecycle", () => {
     const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
     await expect(fetchTinyFishCaptures("../../other")).rejects.toThrow("Invalid TinyFish run identifier");
     expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("distinguishes beta entitlement failures from invalid credentials without retrying", async () => {
+    vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
+    const fetcher = vi.fn(async () => Response.json({ error: { code: "FORBIDDEN", message: "Your account is not enabled for custom max steps yet. Join the beta program at /beta, then retry." } }, { status: 403 }));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(runTinyFishAgent("https://example.com", "Inspect page")).rejects.toThrow("permission/entitlement error (FORBIDDEN). Custom step limits require TinyFish beta access");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it.each([401, 400, 429, 500])("handles HTTP %i safely for every TinyFish endpoint", async (status) => {
+    vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "PROVIDER_ERROR", message: "private credential and website content" } }, { status })));
+    for (const call of [() => runTinyFishAgent("https://example.com", "Inspect"), () => fetchTinyFishDocument("https://example.com"), () => fetchTinyFishCaptures("run-1")]) {
+      const error = await call().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(Error);
+      if (error instanceof Error) {
+        expect(error.message).toContain("PROVIDER_ERROR");
+        expect(error.message).not.toContain("private credential");
+        expect(error.message).toContain(status === 401 ? "authentication" : status === 400 ? "invalid request" : status === 429 ? "rate limited" : "HTTP 500");
+      }
+    }
+  });
+  it("handles non-JSON permission errors without claiming a bad key", async () => {
+    vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("private HTML error", { status: 403 })));
+    await expect(fetchTinyFishDocument("https://example.com")).rejects.toThrow("permission/entitlement error (UNKNOWN_ERROR)");
   });
 });

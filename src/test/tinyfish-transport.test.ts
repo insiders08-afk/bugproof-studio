@@ -1,0 +1,38 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
+
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+function mockStream(chunks: string[]) {
+  vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
+  const encoder = new TextEncoder();
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ start(controller) { chunks.forEach(c => controller.enqueue(encoder.encode(c))); controller.close(); } }), { headers: { "content-type": "text/event-stream" } })));
+}
+describe("TinyFish stream lifecycle", () => {
+  it("handles fragmented CRLF events and preserves STARTED run IDs", async () => {
+    mockStream(['data: {"type":"STAR', 'TED","run_id":"run-1"}\r\n\r\ndata: {"type":"HEARTBEAT"}\r\n\r\n', 'data: {"type":"COMPLETE","status":"COMPLETED","result":{"answer":42}}\r\n\r\n']);
+    const r = await runTinyFishAgent("https://example.com", "Inspect page");
+    expect(r.runId).toBe("run-1"); expect(r.result).toEqual({ answer: 42 });
+  });
+  it("retains run metadata on disconnected streams", async () => {
+    mockStream(['data: {"type":"STARTED","run_id":"run-lost"}\n\n']);
+    try { await runTinyFishAgent("https://example.com", "Inspect page"); throw new Error("Expected a failure"); }
+    catch (e) { expect(e).toBeInstanceOf(TinyFishRunError); if (e instanceof TinyFishRunError) expect(e.run.runId).toBe("run-lost"); }
+  });
+  it("preserves failed status without exposing provider error bodies", async () => {
+    mockStream(['data: {"type":"COMPLETE","run_id":"run-fail","status":"FAILED","error":"sensitive provider content"}\n\n']);
+    await expect(runTinyFishAgent("https://example.com", "Inspect page")).rejects.toThrow("TinyFish run FAILED");
+  });
+  it("does not retry rate-limited billable requests", async () => {
+    vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
+    const fetcher = vi.fn(async () => new Response("private error", { status: 429 })); vi.stubGlobal("fetch", fetcher);
+    await expect(runTinyFishAgent("https://example.com", "Inspect page")).rejects.toThrow("rate limited");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("requests screenshots with bounded execution", async () => {
+    mockStream(['data: {"type":"COMPLETE","status":"COMPLETED","result":{}}\n\n']);
+    await runTinyFishAgent("https://example.com", "Inspect page");
+    const call = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(String(call?.[1]?.body));
+    expect(body.capture_config.screenshots).toBe(true); expect(body.agent_config.max_steps).toBe(30); expect(body.agent_config.max_duration_seconds).toBe(180);
+  });
+});

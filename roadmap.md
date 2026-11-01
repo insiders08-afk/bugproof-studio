@@ -4,4 +4,5 @@
 - [x] Harden TinyFish transport, safe inputs, structured observations and deterministic verdicts.
 - [x] Restore evidence-backed Playwright exports and clear report/history handling.
 - [x] Run regression tests and attempt Ratan through TinyFish; access rejected and correctly saved as INCONCLUSIVE.
-- [ ] Verify successful TinyFish workflow and real capture/step correlation — blocked by TinyFish rejecting configured credential/access.
+- [x] Remove account-gated TinyFish settings and distinguish entitlement errors from authentication failures with safe provider diagnostics.
+- [ ] Rerun Ratan through RealityGate and verify completion, screenshot artifacts and photo readiness after the configuration fix.

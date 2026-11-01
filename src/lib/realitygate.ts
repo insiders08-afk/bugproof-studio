@@ -4,7 +4,7 @@ export type Scenario = "bug" | "repaired";
 
 export const SCENARIOS: { id: Scenario; label: string; hint: string }[] = [
   { id: "bug", label: "Application Bug", hint: "Button exists, but POST /api/webhooks returns 500" },
-  { id: "repaired", label: "Repaired", hint: "Tutorial matches UI and save succeeds" },
+  { id: "repaired", label: "Repaired", hint: "Expected workflow is available and save succeeds" },
 ];
 
 export const DEFAULT_TICKET =
@@ -120,7 +120,7 @@ export function evidenceGate(evidence: Evidence[]): Scorecard {
     verdict: "NOT_REPRODUCED",
     confidence: 0.85,
     facts,
-    inferences: ["Tutorial steps complete successfully against the live target"],
+    inferences: ["The expected workflow completes successfully against the live target"],
     unknowns: ["User's environment, account permissions or browser"],
   };
 }

@@ -79,7 +79,7 @@ export const runLiveTest = createServerFn({ method: "POST" })
     let agentStatus = "NOT_STARTED"; let runId: string | undefined; let streamUrl: string | undefined;
     let finalUrl = data.url; let pageTitle = ""; let plan: Plan = { steps: [], actions: [], expectedTexts: [], forbiddenTexts: [] };
     let outcome: "success" | "failure" | "blocked" | "incomplete" | "unknown" = "unknown";
-    let documentedSteps: string[] = []; let observedSteps: string[] = [];
+    let documentedSteps: string[] = []; let observedSteps: string[] = []; let observedStatusCode: number | null = null;
     let observedTexts: string[] = []; let visibleErrors: string[] = []; let success: string[] = []; let agentSummary = ""; let agentError = "";
     try {
       const run = await runTinyFishAgent(data.url, goal); agentStatus = run.status; runId = run.runId; streamUrl = run.streamingUrl;
@@ -103,7 +103,7 @@ export const runLiveTest = createServerFn({ method: "POST" })
     } catch (e) { agentStatus = "FAILED"; agentError = e instanceof Error ? e.message : String(e); errors.push(agentError);
       push({ kind: "action", label: "TinyFish investigation failed", detail: agentError, ok: false }); }
     const text = observedTexts.concat(success).join("\\n");
-    const gate = liveGate({ statusCode: null, scrapeError: agentStatus === "FAILED" ? agentError || "TinyFish failed" : undefined,
+    const gate = liveGate({ statusCode: observedStatusCode, scrapeError: agentStatus === "FAILED" ? agentError || "TinyFish failed" : undefined,
       actionsError: outcome === "blocked" || outcome === "incomplete" || outcome === "unknown" ? agentError || outcome : undefined,
       pageText: text, expectedTexts: plan.expectedTexts.length ? plan.expectedTexts : success, forbiddenTexts: visibleErrors,
       agentOutcome: outcome, documentedSteps, observedSteps });

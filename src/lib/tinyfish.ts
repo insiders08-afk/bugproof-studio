@@ -21,6 +21,28 @@ function getApiKey(): string {
   return key;
 }
 
+/** Provider-owned async execution survives the originating browser request. No POST retries. */
+export async function startTinyFishAgent(url: string, goal: string, outputSchema?: Record<string, unknown>): Promise<string> {
+  const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-async", {
+    method: "POST", headers: { "X-API-Key": getApiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ url, goal, agent_config: { max_duration_seconds: 180 }, capture_config: { screenshots: true }, ...(outputSchema ? { output_schema: outputSchema } : {}) }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new Error(await apiError(response));
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || !("run_id" in payload) || typeof payload.run_id !== "string" || !/^[A-Za-z0-9_-]+$/.test(payload.run_id)) throw new Error("TinyFish did not return a valid run identifier; do not automatically retry.");
+  return payload.run_id;
+}
+
+export async function fetchTinyFishStatus(runId: string): Promise<{status: string; result: unknown}> {
+  if (!/^[A-Za-z0-9_-]+$/.test(runId)) throw new Error("Invalid TinyFish run identifier.");
+  const response = await fetch(`https://agent.tinyfish.ai/v1/runs/${encodeURIComponent(runId)}?screenshots=none&html=none`, { headers: { "X-API-Key": getApiKey() }, signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(await apiError(response));
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || !("status" in payload) || typeof payload.status !== "string") throw new Error("TinyFish returned an invalid run status.");
+  return { status: payload.status.toUpperCase(), result: "result" in payload ? payload.result : null };
+}
+
 export class TinyFishRunError extends Error {
   constructor(message: string, public run: TinyFishAgentRun) { super(message); this.name = "TinyFishRunError"; }
 }

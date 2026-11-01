@@ -1,0 +1,2 @@
+ALTER TABLE public.test_runs ADD COLUMN finalize_lease_until timestamptz;
+CREATE POLICY "Read own test captures" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'test-captures' AND (storage.foldername(name))[1] = auth.uid()::text);

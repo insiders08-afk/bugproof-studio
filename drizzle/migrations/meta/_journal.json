@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793524821734,
+      "tag": "0000_private_test_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793524852381,
+      "tag": "0001_test_finalization_and_captures",
+      "breakpoints": true
+    }
+  ]
+}

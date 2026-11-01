@@ -17,11 +17,11 @@ describe("TinyFish live evidence gate", () => {
   it("passes a completed workflow with visible success evidence", () => {
     expect(liveGate({ statusCode: null, pageText: "Saved successfully", expectedTexts: ["Saved successfully"], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: [] }).verdict).toBe("PASS");
   });
-  it("keeps a failure without visible error evidence inconclusive", () => {
-    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "failure" }).verdict).toBe("INCONCLUSIVE");
+  it("uses TinyFish failure without requiring visible error evidence", () => {
+    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "failure" }).verdict).toBe("FAILED");
   });
-  it("classifies visible application error after failed workflow as bug", () => {
-    expect(liveGate({ statusCode: null, pageText: "Internal Server Error", expectedTexts: [], forbiddenTexts: ["Internal Server Error"], agentOutcome: "failure" }).verdict).toBe("APPLICATION_BUG");
+  it("does not independently classify a failed test as an application bug", () => {
+    expect(liveGate({ statusCode: null, pageText: "Internal Server Error", expectedTexts: [], forbiddenTexts: ["Internal Server Error"], agentOutcome: "failure" }).verdict).toBe("FAILED");
   });
   it("keeps blocked runs inconclusive", () => {
     expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "blocked" }).verdict).toBe("INCONCLUSIVE");

@@ -1,33 +1,33 @@
 # BugProof Studio
 
-Build RealityGate: a developer tool that investigates software failures, proves what happened with evidence, and preserves confirmed bugs as repeatable tests.
+Build RealityGate: a developer tool that investigates software failures, compares live application behavior with documentation, and records evidence-backed verdicts.
 
-Instead of TinyFish, use Firecrawl for documentation scraping and browser actions, paired with Lovable AI for orchestration and planning.
+## Live investigation pipeline
 
-Core features:
-1. Ticket-to-Tutorial Arbiter: Compares complaints and tutorial documentation against live application behavior to detect documentation drift versus genuine application bugs.
-2. Evidence Gate & Reproduction Scorecard: Verifies actions, DOM states, and network errors, strictly separating observed facts, inferences, and unknowns.
-3. Crash-to-Guardrail: Converts confirmed bugs into repeatable Playwright regression test recipes and provides an interactive replay runner to verify before/after fixes.
-4. Built-in Sandbox Target: A controlled target application with interactive scenario toggles (Application Bug, Documentation Drift, and Repaired) for instant testing.
-5. Investigation Dashboard: Live timeline feed, screenshot & evidence inspector, scorecard metrics, and test runner.
+- **TinyFish Agent** (`TINYFISH_API_KEY`): opens the target website, follows the requested workflow, and returns observations through its SSE completion event.
+- **TinyFish Fetch**: optionally retrieves a supplied documentation or tutorial URL.
+- **RealityGate Evidence Gate**: applies conservative verdict rules. An agent run marked completed is not automatically treated as a successful user workflow.
+- **Lovable AI** (`LOVABLE_API_KEY`, optional): writes an engineering narrative from recorded evidence. It does not decide or override the verdict.
 
-This project was built with [Lovable](https://lovable.dev).
+The live homepage does not use the sandbox browser environment. Sandbox/lab routes are intentionally outside this migration.
 
-## Build with Lovable
+## Environment
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/4b3c86c6-e23f-40af-a561-7f37e798f5d5).
+Set these server-side variables in your deployment environment. Do not use a `VITE_` prefix:
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+```env
+TINYFISH_API_KEY=YOUR_TINYFISH_API_KEY_HERE
+LOVABLE_API_KEY=YOUR_LOVABLE_API_KEY_HERE
+```
+
+The placeholder values are fake. Replace them with real credentials before running a live investigation. Never commit real API keys.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm install
 npm run dev
+npm test
+npm run lint
+npm run build
 ```

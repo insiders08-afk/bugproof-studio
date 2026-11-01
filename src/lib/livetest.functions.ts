@@ -4,7 +4,7 @@ import { liveGate, type LiveEvidence, type LiveVerdict } from "@/lib/realitygate
 import { fetchTinyFishDocument, runTinyFishAgent } from "@/lib/tinyfish";
 
 const Input = z.object({
-  url: z.string().url().max(2000).refine((v) => /^https?:\\/\\//.test(v), "Use an HTTP or HTTPS URL"),
+  url: z.string().url().max(2000).refine((v) => /^https?:\/\//.test(v), "Use an HTTP or HTTPS URL"),
   prompt: z.string().trim().min(3).max(2000),
   docsUrl: z.union([z.string().url().max(2000), z.literal("")]).optional().default(""),
 });
@@ -90,14 +90,14 @@ export const runLiveTest = createServerFn({ method: "POST" })
       plan = { steps: documented.length ? documented : observed, actions: [], expectedTexts: list(parsed.expected_texts, 5), forbiddenTexts: visibleErrors };
       for (const item of parsed.evidence || []) {
         const kind = item.type === "network" ? "network" : item.type === "screenshot" ? "screenshot" : item.type === "step" ? "action" : "dom";
-        const shot = item.screenshot_url && /^https?:\\/\\//.test(item.screenshot_url) ? item.screenshot_url : undefined;
+        const shot = item.screenshot_url && /^https?:\/\//.test(item.screenshot_url) ? item.screenshot_url : undefined;
         if (shot) screenshots.push(shot);
         push({ kind, label: item.label || item.type || "Browser observation", detail: item.detail || item.url || "TinyFish observation",
           ok: item.ok ?? (item.status != null ? item.status < 400 : item.type === "success"), ...(shot ? { screenshot: shot } : {}) });
       }
       for (const s of visibleErrors) push({ kind: "dom", label: "Visible error", detail: s, ok: false });
       for (const s of success) push({ kind: "dom", label: "Success indicator", detail: s, ok: true });
-      for (const s of list(parsed.screenshots)) if (/^https?:\\/\\//.test(s)) screenshots.push(s);
+      for (const s of list(parsed.screenshots)) if (/^https?:\/\//.test(s)) screenshots.push(s);
       if (agentSummary) push({ kind: "dom", label: "Agent summary", detail: agentSummary, ok: outcome === "success" });
       agentError = parsed.error || "";
     } catch (e) { agentStatus = "FAILED"; agentError = e instanceof Error ? e.message : String(e); errors.push(agentError);

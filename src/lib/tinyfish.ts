@@ -78,7 +78,7 @@ export async function runTinyFishAgent(url: string, goal: string, outputSchema?:
       const event = parseTinyFishSseBlock(block);
       if (!event) return;
       // Keep only bounded diagnostics, not arbitrary page/credential-bearing event payloads.
-      if (run.events.length < 100) run.events.push({ type: event.type, status: event.status });
+      if (run.events.length < 100) run.events.push({ ...(event.type ? { type: event.type } : {}), ...(event.status ? { status: event.status } : {}) });
       if (typeof event["run_id"] === "string") run.runId = event["run_id"];
       if (event.type === "STARTED") run.status = "RUNNING";
       if (event.type === "STREAMING_URL" && typeof event["streaming_url"] === "string" && event["streaming_url"].startsWith("https://")) run.streamingUrl = event["streaming_url"];

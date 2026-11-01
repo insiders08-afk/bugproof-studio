@@ -13,7 +13,7 @@ export const Route = createFileRoute("/")({
       { title: "RealityGate — Test any website in plain English" },
       { name: "description", content: "Paste a URL, describe the test in plain English, get an evidence-backed verdict with screenshots." },
       { property: "og:title", content: "RealityGate — Test any website in plain English" },
-      { property: "og:description", content: "Real browser runs, screenshots, a bug/drift/pass verdict and a Playwright guardrail." },
+      { property: "og:description", content: "Real browser runs, TinyFish test verdicts, screenshots and safe Playwright replay candidates." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/")({
 
 const KEY = "realitygate.history.v1";
 const VERDICT_STYLE: Record<string, string> = {
+  FAILED: "bg-destructive/20 text-destructive border-destructive",
   APPLICATION_BUG: "bg-destructive/20 text-destructive border-destructive",
   DOCUMENTATION_DRIFT: "bg-primary/20 text-primary border-primary",
   PASS: "bg-success/20 text-success border-success",
@@ -99,7 +100,7 @@ function Home() {
                   <span className="block truncate text-sm">{r.prompt}</span>
                   <span className="block truncate font-mono text-xs text-muted-foreground">{r.url} · {new Date(r.createdAt).toLocaleString()}</span>
                 </span>
-                <span className="font-mono text-xs text-muted-foreground">{Math.round(r.confidence * 100)}%</span>
+                <span className="font-mono text-xs text-muted-foreground">{r.verdictSource === "tinyfish" ? "TinyFish" : "Legacy"}</span>
               </Button>
               {open === r.id && <Report r={r} />}
             </div>
@@ -114,10 +115,10 @@ function Report({ r }: { r: LiveReport }) {
   return (
     <div className="space-y-5 border-t border-border p-4 text-sm">
       {r.finalUrl && <p className="break-all font-mono text-xs text-muted-foreground">Final page: {r.finalUrl}</p>}
-      <Block title="TinyFish run"><p className="font-mono text-xs">Status: {r.agentStatus}{r.tinyfishRunId ? ` · Run: ${r.tinyfishRunId}` : ""}</p>{r.tinyfishStreamUrl && <a className="text-info underline" href={r.tinyfishStreamUrl} target="_blank" rel="noreferrer">Open live browser stream ↗</a>}</Block>
+      <Block title="TinyFish run"><p className="font-mono text-xs">Status: {r.agentStatus}{r.providerOutcome ? ` · Test outcome: ${r.providerOutcome}` : ""}{r.tinyfishRunId ? ` · Run: ${r.tinyfishRunId}` : ""}</p>{r.tinyfishStreamUrl && <a className="text-info underline" href={r.tinyfishStreamUrl} target="_blank" rel="noreferrer">Open live browser stream ↗</a>}</Block>
       {r.providerSummary && <Block title="TinyFish conclusion"><p>{r.providerSummary}</p></Block>}
       {r.replayUnavailable && <Block title="Replay limitations"><p>{r.replayUnavailable}</p></Block>}
-      {r.narrative && <Block title="AI report"><p>{r.narrative}</p>
+      {r.narrative && <Block title="AI summary"><p>{r.narrative}</p>
         {r.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{r.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}</Block>}
       {r.screenshots.length > 0 && <Block title="TinyFish screenshots">
         <div className="grid gap-3 sm:grid-cols-2">{r.screenshots.map((s, i) => (
@@ -130,7 +131,7 @@ function Report({ r }: { r: LiveReport }) {
           <li key={e.id} className="flex gap-2"><span className="text-muted-foreground">{e.id}</span><span className={e.ok ? "text-success" : "text-destructive"}>{e.ok ? "✓" : "✗"}</span><span className="flex-1 break-all">{e.label} <span className="text-muted-foreground">— {e.detail.slice(0, 200)}</span></span></li>
         ))}</ol></Block>
       {r.unknowns && r.unknowns.length > 0 && <Block title="Unknowns / limitations"><ul className="list-disc pl-5 text-muted-foreground">{r.unknowns.map((s, i) => <li key={i}>{s}</li>)}</ul></Block>}
-      {r.playwright && <Block title={r.verdict === "APPLICATION_BUG" ? "Playwright regression candidate" : "Playwright replay candidate"}>
+      {r.playwright && <Block title={r.verdict === "APPLICATION_BUG" || r.verdict === "FAILED" ? "Playwright regression candidate" : "Playwright replay candidate"}>
         <Button variant="outline" onClick={() => {
           const objectUrl = URL.createObjectURL(new Blob([r.playwright], { type: "text/plain" }));
           const link = document.createElement("a"); link.href = objectUrl; link.download = `realitygate-${r.id}.spec.ts`; link.click();

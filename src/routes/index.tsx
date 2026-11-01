@@ -28,12 +28,12 @@ const VERDICT_STYLE: Record<string, string> = {
   PASS: "bg-success/20 text-success border-success",
   INCONCLUSIVE: "bg-muted text-muted-foreground border-border",
 };
-const STAGES = ["Running test"];
 
 function Home() {
   const run = useServerFn(runLiveTest);
   const [url, setUrl] = useState("https://");
   const [prompt, setPrompt] = useState("");
+  const [docsUrl, setDocsUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
   const [err, setErr] = useState("");
@@ -41,19 +41,13 @@ function Home() {
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => { try { setHistory(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch { /* ignore */ } }, []);
-  useEffect(() => {
-    if (!busy) return;
-    setStage(0);
-    const t = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 9000);
-    return () => clearInterval(t);
-  }, [busy]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
     setBusy(true); setErr("");
     try {
-      const r = await run({ data: { url: url.trim(), prompt: prompt.trim() } });
+      const r = await run({ data: { url: url.trim(), prompt: prompt.trim(), docsUrl: docsUrl.trim() } });
       const next = [r, ...history].slice(0, 30);
       setHistory(next); setOpen(r.id);
       try { localStorage.setItem(KEY, JSON.stringify(next)); }
@@ -78,13 +72,15 @@ function Home() {
       <form onSubmit={submit} className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-lg">
         <label className="block font-mono text-xs uppercase tracking-widest text-muted-foreground">Website URL</label>
         <Input type="url" required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" className="h-11 font-mono" />
+        <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">Documentation / tutorial URL (optional)</label>
+        <Input type="url" value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} placeholder="https://docs.example.com/guide" className="h-11 font-mono" />
         <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">What should we test?</label>
         <Textarea required rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder='e.g. "Search for laptop and check that results appear" or "The pricing page should show a Pro plan"' />
         <Button type="submit" size="lg" className="w-full" disabled={busy || prompt.trim().length < 3}>
-          {busy ? `${STAGES[stage]}…` : "Run test"}
+          {busy ? "TinyFish is investigating…" : "Run live investigation"}
         </Button>
-        {busy && <p role="status" className="text-center text-xs text-muted-foreground">Test in progress…</p>}
+        {busy && <p role="status" className="text-center text-xs text-muted-foreground">Waiting for the real TinyFish browser run to finish. This can take a few minutes.</p>}
         {err && <p className="text-sm text-destructive">{err}</p>}
       </form>
 
@@ -115,19 +111,21 @@ function Report({ r }: { r: LiveReport }) {
   return (
     <div className="space-y-5 border-t border-border p-4 text-sm">
       {r.finalUrl && <p className="break-all font-mono text-xs text-muted-foreground">Final page: {r.finalUrl}</p>}
+      <Block title="TinyFish run"><p className="font-mono text-xs">Status: {r.agentStatus}{r.tinyfishRunId ? ` · Run: ${r.tinyfishRunId}` : ""}</p>{r.tinyfishStreamUrl && <a className="text-info underline" href={r.tinyfishStreamUrl} target="_blank" rel="noreferrer">Open live browser stream ↗</a>}</Block>
+      {r.docsUrl && <Block title="Documentation comparison"><p className="break-all text-xs text-muted-foreground">{r.docsTitle || r.docsUrl}</p>{r.docsError ? <p className="text-destructive">{r.docsError}</p> : <p className="text-xs text-muted-foreground">{r.docsExcerpt}</p>}</Block>}
       {r.narrative && <Block title="AI report"><p>{r.narrative}</p>
         {r.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{r.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}</Block>}
-      {r.screenshots.length > 0 && <Block title="What the browser saw">
+      {r.screenshots.length > 0 && <Block title="TinyFish screenshots">
         <div className="grid gap-3 sm:grid-cols-2">{r.screenshots.map((s, i) => (
           <a key={i} href={s} target="_blank" rel="noreferrer"><img src={s} alt={`Screenshot ${i + 1} of ${r.url}`} className="rounded border border-border" loading="lazy" /></a>
         ))}</div></Block>}
-      <Block title="Test plan (AI)"><ol className="list-decimal pl-5 text-muted-foreground">{r.plan.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+      <Block title="Agent-reported workflow"><ol className="list-decimal pl-5 text-muted-foreground">{r.plan.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
         <div className="mt-2 font-mono text-xs text-muted-foreground">Expected: {r.plan.expectedTexts.join(", ") || "—"} · Failure signs: {r.plan.forbiddenTexts.join(", ") || "—"}</div></Block>
       <Block title="Evidence">
         <ol className="space-y-1 font-mono text-xs">{r.evidence.filter((e) => e.kind !== "screenshot").map((e) => (
           <li key={e.id} className="flex gap-2"><span className="text-muted-foreground">{e.id}</span><span className={e.ok ? "text-success" : "text-destructive"}>{e.ok ? "✓" : "✗"}</span><span className="flex-1 break-all">{e.label} <span className="text-muted-foreground">— {e.detail.slice(0, 200)}</span></span></li>
         ))}</ol></Block>
-      <Block title="Playwright guardrail"><pre className="max-h-72 overflow-auto rounded border border-border bg-background p-3 font-mono text-[11px]">{r.playwright}</pre></Block>
+      
       {r.errors.length > 0 && <p className="text-xs text-destructive">{r.errors.join(" · ")}</p>}
     </div>
   );

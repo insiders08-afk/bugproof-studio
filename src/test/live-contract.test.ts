@@ -31,9 +31,9 @@ describe("TinyFish production contract", () => {
     expect(observationIssues(r)).toEqual([]);
   });
   it("does not let missing evidence override TinyFish success", () => {
-    expect(liveGate({ statusCode: 200, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: ["No screenshot evidence"] }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: 200, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success", requirementMet: "yes", evidenceIssues: ["No screenshot evidence"] }).verdict).toBe("PASS");
   });
   it("ignores invalid HTTP measurements for the verdict", () => {
-    expect(liveGate({ statusCode: 999, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success" }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: 999, pageText: "DATE", expectedTexts: ["DATE"], forbiddenTexts: [], agentOutcome: "success", requirementMet: "yes" }).verdict).toBe("PASS");
   });
 });

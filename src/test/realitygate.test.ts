@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { liveGate } from "@/lib/realitygate";
 describe("live gate", () => {
-  const base = { statusCode: 200, pageText: "Welcome Sign in Pricing", expectedTexts: ["Sign in", "Pricing"], forbiddenTexts: ["Something went wrong"], agentOutcome: "success" as const };
+  const base = { statusCode: 200, pageText: "Welcome Sign in Pricing", expectedTexts: ["Sign in", "Pricing"], forbiddenTexts: ["Something went wrong"], agentOutcome: "success" as const, requirementMet: "yes" as const };
   it("passes when all expected texts appear", () => expect(liveGate(base).verdict).toBe("PASS"));
   it("HTTP errors do not override TinyFish success", () => expect(liveGate({ ...base, statusCode: 500 }).verdict).toBe("PASS"));
   it("visible errors do not override TinyFish success", () => expect(liveGate({ ...base, pageText: base.pageText + " Something went wrong" }).verdict).toBe("PASS"));
@@ -13,5 +13,11 @@ describe("live gate", () => {
   it("blank expectations do not override TinyFish success", () => expect(liveGate({ ...base, expectedTexts: [" "] }).verdict).toBe("PASS"));
   it("TinyFish failure maps to FAILED even when text matches", () => expect(liveGate({ ...base, agentOutcome: "failure" }).verdict).toBe("FAILED"));
   it.each(["blocked", "incomplete", "unknown"] as const)("keeps TinyFish %s inconclusive", agentOutcome => expect(liveGate({ ...base, agentOutcome }).verdict).toBe("INCONCLUSIVE"));
+  it("completed run + success + requirement met is PASS", () => expect(liveGate({ ...base, runStatus: "COMPLETED" }).verdict).toBe("PASS"));
+  it("success without a confirmed requirement is INCONCLUSIVE", () => expect(liveGate({ ...base, requirementMet: "unknown" }).verdict).toBe("INCONCLUSIVE"));
+  it("requirement not met is FAILED even when TinyFish says success", () => expect(liveGate({ ...base, requirementMet: "no" }).verdict).toBe("FAILED"));
+  it("a run that did not complete is INCONCLUSIVE even with success", () => expect(liveGate({ ...base, runStatus: "TIMED_OUT" }).verdict).toBe("INCONCLUSIVE"));
+  it("failure claiming the requirement is met is a contradiction, INCONCLUSIVE", () => expect(liveGate({ ...base, agentOutcome: "failure", requirementMet: "yes" }).verdict).toBe("INCONCLUSIVE"));
+  it("blocked runs stay INCONCLUSIVE even if requirement says no", () => expect(liveGate({ ...base, agentOutcome: "blocked", requirementMet: "no" }).verdict).toBe("INCONCLUSIVE"));
   it("missing outcome cannot pass", () => expect(liveGate({ statusCode: base.statusCode, pageText: base.pageText, expectedTexts: base.expectedTexts, forbiddenTexts: base.forbiddenTexts }).verdict).toBe("INCONCLUSIVE"));
 });

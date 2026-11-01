@@ -15,7 +15,7 @@ describe("TinyFish SSE parsing", () => {
 
 describe("TinyFish live evidence gate", () => {
   it("passes a completed workflow with visible success evidence", () => {
-    expect(liveGate({ statusCode: null, pageText: "Saved successfully", expectedTexts: ["Saved successfully"], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: [] }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: null, pageText: "Saved successfully", expectedTexts: ["Saved successfully"], forbiddenTexts: [], agentOutcome: "success", requirementMet: "yes", evidenceIssues: [] }).verdict).toBe("PASS");
   });
   it("uses TinyFish failure without requiring visible error evidence", () => {
     expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "failure" }).verdict).toBe("FAILED");
@@ -26,7 +26,7 @@ describe("TinyFish live evidence gate", () => {
   it("keeps blocked runs inconclusive", () => {
     expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "blocked" }).verdict).toBe("INCONCLUSIVE");
   });
-  it("passes a successful negative check using the visible unavailability notice", () => {
-    expect(liveGate({ statusCode: null, pageText: "Book slot. Online booking is not active for this venue yet.", expectedTexts: ["Book slot", "Online booking is not active for this venue yet."], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: [] }).verdict).toBe("PASS");
+  it("fails when booking is required but TinyFish found it unavailable, even if TinyFish said success", () => {
+    expect(liveGate({ statusCode: null, pageText: "Book slot. Online booking is not active for this venue yet.", expectedTexts: ["Book slot", "Online booking is not active for this venue yet."], forbiddenTexts: [], agentOutcome: "success", requirementMet: "no", runStatus: "COMPLETED", evidenceIssues: [] }).verdict).toBe("FAILED");
   });
 });

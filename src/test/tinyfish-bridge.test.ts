@@ -19,10 +19,11 @@ describe("TinyFish native evidence bridge", () => {
     const b = bridgeTinyFish({ ...result, steps: ["clicked card"], screenshots: "unavailable", network: [{ status: 999 }] }, artifacts);
     expect(b.observation?.outcome).toBe("success"); expect(b.issues).toEqual([]); expect(b.observation?.network).toEqual([]);
   });
-  it("passes a provider-backed successful negative check without inventing network or photo counts", () => {
-    const b = bridgeTinyFish(result, artifacts); const o = b.observation;
+  it("fails a completed run when TinyFish reports the requirement is not met, without inventing network or photo counts", () => {
+    const b = bridgeTinyFish({ ...result, requirement_met: "no" }, artifacts); const o = b.observation;
     if (!o) throw new Error("Missing observation");
-    expect(liveGate({ statusCode: null, pageText: o.final_text, expectedTexts: o.expected_texts, forbiddenTexts: [], agentOutcome: o.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+    expect(b.requirementMet).toBe("no");
+    expect(liveGate({ statusCode: null, pageText: o.final_text, expectedTexts: o.expected_texts, forbiddenTexts: [], agentOutcome: o.outcome, requirementMet: b.requirementMet, runStatus: "COMPLETED" }).verdict).toBe("FAILED");
     expect(o.network).toEqual([]); expect(o.screenshots).toEqual([]);
   });
   it("does not pass solely on a completion status", () => {
@@ -30,17 +31,17 @@ describe("TinyFish native evidence bridge", () => {
     expect(bridgeTinyFish(result).issues).toContain("No native TinyFish workflow steps were retrieved.");
   });
   it("retains explicit success when the report contract is invalid", () => {
-    const b = bridgeTinyFish({ outcome: "success", summary: "Requested check succeeded" });
+    const b = bridgeTinyFish({ outcome: "success", requirement_met: "yes", summary: "Requested check succeeded" });
     expect(b.observation).toBeUndefined(); expect(b.outcome).toBe("success"); expect(b.summary).toBe("Requested check succeeded");
-    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, requirementMet: b.requirementMet, evidenceIssues: b.issues }).verdict).toBe("PASS");
   });
   it("retains failure when the report contract is invalid", () => {
     expect(bridgeTinyFish({ outcome: "failure" }).outcome).toBe("failure");
   });
   it("keeps failed native steps as limitations without overriding success", () => {
-    const b = bridgeTinyFish(result, { ...artifacts, status: "FAILED", steps: [{ stepId: "failed-step", label: "Click", status: "FAILED" }] });
+    const b = bridgeTinyFish({ ...result, requirement_met: "yes" }, { ...artifacts, status: "FAILED", steps: [{ stepId: "failed-step", label: "Click", status: "FAILED" }] });
     expect(b.issues).toContain("A native TinyFish step reported failure.");
-    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: b.outcome, requirementMet: b.requirementMet, evidenceIssues: b.issues }).verdict).toBe("PASS");
   });
   it("uses native outcome only when the streamed outcome is absent or invalid", () => {
     expect(bridgeTinyFish({}, artifacts).outcome).toBe("success");
@@ -72,5 +73,10 @@ describe("TinyFish native evidence bridge", () => {
     const b = bridgeTinyFish({ ...result, steps: [{ action: { type: "click", text: "Book slot" }, targetVisible: true, beforeText: "Book slot", afterText: "DATE", ok: true }, { action: { type: "click", text: "Confirm booking" }, targetVisible: true, beforeText: "Confirm booking", afterText: "Booked", ok: true }] }, artifacts);
     if (!b.observation) throw new Error("Missing observation");
     expect(replayActions(b.observation)).toEqual([]);
+  });
+  it("treats a missing or unrecognised requirement check as unknown, never yes", () => {
+    expect(bridgeTinyFish({ outcome: "success" }).requirementMet).toBe("unknown");
+    expect(bridgeTinyFish({ outcome: "success", requirement_met: "maybe" }).requirementMet).toBe("unknown");
+    expect(bridgeTinyFish({ outcome: "success", requirement_met: true }).requirementMet).toBe("yes");
   });
 });

@@ -42,7 +42,7 @@ export function targetBehaviour(s: Scenario) {
   };
 }
 
-/** Deterministically drive the sandbox target following the tutorial's steps. */
+/** Deterministically drive the sandbox target through the expected workflow. */
 export function runSandbox(s: Scenario, expectedButton = "Create Endpoint"): SandboxRun {
   const b = targetBehaviour(s);
   const url = "https://example.com/hook";

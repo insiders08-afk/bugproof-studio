@@ -28,7 +28,6 @@ export const Route = createFileRoute("/lab")({
 
 const VERDICT_STYLE: Record<string, string> = {
   APPLICATION_BUG: "bg-destructive/20 text-destructive border-destructive",
-  DOCUMENTATION_DRIFT: "bg-primary/20 text-primary border-primary",
   NOT_REPRODUCED: "bg-success/20 text-success border-success",
   INCONCLUSIVE: "bg-muted text-muted-foreground border-border",
 };
@@ -38,15 +37,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function Dashboard() {
   const analyze = useServerFn(analyzeInvestigation);
   const [ticket, setTicket] = useState(DEFAULT_TICKET);
-  const [docsText, setDocsText] = useState(DEFAULT_TUTORIAL);
-  const [docsUrl, setDocsUrl] = useState("");
   const [scenario, setScenario] = useState<Scenario>("bug");
   const [running, setRunning] = useState(false);
   const [timeline, setTimeline] = useState<Evidence[]>([]);
   const [selected, setSelected] = useState<Evidence | null>(null);
   const [score, setScore] = useState<Scorecard | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [button, setButton] = useState("Create Endpoint");
   const [replay, setReplay] = useState<{ scenario: Scenario; steps: ReplayStep[] }[]>([]);
 
   async function investigate() {
@@ -54,13 +50,7 @@ function Dashboard() {
     let run = runSandbox(scenario);
     for (const e of run.evidence) { setTimeline((t) => [...t, e]); setSelected(e); await sleep(350); }
     let gate = evidenceGate(run.evidence);
-    const a = await analyze({ data: { ticket, docsUrl, docsText, verdict: gate.verdict, evidence: gate.facts } });
-    if (a.expectedButton && a.expectedButton !== "Create Endpoint") {
-      run = runSandbox(scenario, a.expectedButton);
-      setTimeline(run.evidence);
-      gate = evidenceGate(run.evidence);
-    }
-    setButton(a.expectedButton || "Create Endpoint");
+    const a = await analyze({ data: { ticket, verdict: gate.verdict, evidence: gate.facts } });
     setAnalysis(a); setScore(gate); setRunning(false);
   }
 
@@ -83,11 +73,7 @@ function Dashboard() {
           <Panel title="01 · Ticket">
             <Textarea rows={3} value={ticket} onChange={(e) => setTicket(e.target.value)} />
           </Panel>
-          <Panel title="02 · Tutorial / docs">
-            <Input placeholder="Optional docs URL (scraped with Firecrawl)" value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} />
-            <Textarea rows={7} className="mt-2 font-mono text-xs" value={docsText} onChange={(e) => setDocsText(e.target.value)} />
-          </Panel>
-          <Panel title="03 · Sandbox scenario">
+          <Panel title="02 · Sandbox scenario">
             <div className="grid gap-2">
               {SCENARIOS.map((s) => (
                 <button key={s.id} onClick={() => setScenario(s.id)}
@@ -147,7 +133,7 @@ function Dashboard() {
                 </div>
                 {analysis && (
                   <div className="rounded border border-border bg-muted/50 p-3 text-sm">
-                    <div className="mb-1 font-mono text-xs text-muted-foreground">AI narrative · docs: {analysis.docsSource} · expected button “{analysis.expectedButton}”</div>
+                    <div className="mb-1 font-mono text-xs text-muted-foreground">AI engineering analysis</div>
                     {analysis.narrative && <p>{analysis.narrative}</p>}
                     {analysis.nextSteps.length > 0 && <ul className="mt-2 list-disc pl-5 text-muted-foreground">{analysis.nextSteps.map((s) => <li key={s}>{s}</li>)}</ul>}
                     {analysis.error && <p className="mt-2 text-xs text-destructive">{analysis.error}</p>}
@@ -162,11 +148,11 @@ function Dashboard() {
               <Empty>{score ? "Guardrails are only generated for confirmed application bugs." : "Waiting for a confirmed bug."}</Empty>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                <pre className="max-h-80 overflow-auto rounded border border-border bg-background p-3 font-mono text-[11px] leading-relaxed">{playwrightRecipe(button)}</pre>
+                <pre className="max-h-80 overflow-auto rounded border border-border bg-background p-3 font-mono text-[11px] leading-relaxed">{playwrightRecipe("Create Endpoint")}</pre>
                 <div className="space-y-3">
                   <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => setReplay((r) => [{ scenario: "bug", steps: replayGuardrail("bug", button) }, ...r])}>Replay: before fix</Button>
-                    <Button onClick={() => setReplay((r) => [{ scenario: "repaired", steps: replayGuardrail("repaired", button) }, ...r])}>Replay: after fix</Button>
+                    <Button variant="secondary" onClick={() => setReplay((r) => [{ scenario: "bug", steps: replayGuardrail("bug", "Create Endpoint") }, ...r])}>Replay: before fix</Button>
+                    <Button onClick={() => setReplay((r) => [{ scenario: "repaired", steps: replayGuardrail("repaired", "Create Endpoint") }, ...r])}>Replay: after fix</Button>
                   </div>
                   {replay.map((r, i) => {
                     const pass = r.steps.every((s) => s.pass);

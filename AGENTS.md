@@ -10,7 +10,11 @@
 <!-- LOVABLE:END -->
 
 - Sandbox verdicts use evidenceGate; liveGate maps only TinyFish's explicit test outcome to PASS, FAILED or INCONCLUSIVE so AI narration and evidence checks cannot override the provider. FAILED is a failed test, not proof of application fault; APPLICATION_BUG remains a legacy live-report label.
-- Real-site runs use one TinyFish run-sse session with bounded duration and screenshot capture enabled; preserving the run identifier and never retrying POST automatically avoids losing failure state or duplicating billable actions. Past tests remain in browser localStorage (no backend yet).
+- Real-site runs start once through TinyFish run-async with bounded duration and screenshot capture; persist provider IDs before polling and never automatically retry billable starts. Cloud test_runs stores owner-private history, not browser localStorage.
+- Authenticated server functions verify identity before dynamically importing privileged run helpers; all privileged reads/writes additionally scope to the verified owner. Only server helpers can write provider reports, preventing forged browser verdicts.
+- Provider execution survives navigation; owner-triggered polls recover completion using an expiring database finalization lease. Private capture paths are signed on read; no background promises or in-memory job state.
+- AccountSession owns identity-transition subscription; public home has inline Google sign-in, and private server functions require auth even though the home itself is public.
+- Repeat test starts a fresh provider investigation with the saved URL and prompt, not a deterministic replay. TestReport presents provider conclusions while retaining hidden evidence limitations in stored reports.
 - Decode TinyFish outcomes independently of report-contract validation in src/lib/tinyfish-bridge.ts; completion status is not test success, and missing observations/artifacts affect limitations and replay eligibility only. Reports record verdictSource and providerOutcome; historical verdicts remain unchanged and labeled Legacy.
 - Export only complete safe structured action sequences as Playwright replay candidates; do not infer executable clicks from native prose, drop unsafe intermediate actions, or call provider-reported observations independently verified guardrails.
 - Retrieve screenshot pixels via authenticated TinyFish run lookup with inline base64 and correlate readiness by provider step ID; never expose credentials or trust agent-invented screenshot URLs.

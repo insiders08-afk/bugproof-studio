@@ -11,8 +11,9 @@
 - [x] Run regression checks and exercise booking through the interface; retain native screenshots and fix observed result-format mismatches.
 - [ ] User acceptance check of the latest verdict handling; user chose to run remaining live tests themselves.
 - [x] Make TinyFish outcomes the sole live verdict source, separate evidence/replay limitations, and verify regression checks.
-- [ ] Simplify report sections and add Repeat test with saved URL/instructions.
-- [ ] Apply simple green-and-brown neo-brutalist styling.
-- [ ] Enable Google-only sign-in without profiles and owner-private Cloud history/storage.
-- [ ] Decouple test startup and resumable polling without automatic duplicate launches.
-- [ ] Verify private account data and repeat/resume behavior; no new rate limits.
+- [x] Simplify report sections and add Repeat test with saved URL/instructions.
+- [x] Apply simple green-and-brown neo-brutalist styling.
+- [x] Enable Google-only sign-in without profiles and owner-private Cloud history/storage.
+- [x] Decouple test startup and resumable polling without automatic duplicate launches.
+- [x] Regression checks passed (73); desktop/phone public UI verified; no new rate limits.
+- [ ] Authenticated private history and live repeat/resume acceptance check — blocked until first Google user signs in; backend has no auth users to mint a session for.

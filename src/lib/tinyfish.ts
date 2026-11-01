@@ -159,3 +159,33 @@ export async function fetchTinyFishDocument(url: string): Promise<TinyFishDocume
     text: text.slice(0, 20_000),
   };
 }
+
+/** Retrieve actual provider artifacts; never expose API keys in image URLs. */
+export async function fetchTinyFishCaptures(runId: string): Promise<Array<{ stepId: string; image: string; label: string }>> {
+  if (!/^[A-Za-z0-9_-]+$/.test(runId)) throw new Error("Invalid TinyFish run identifier.");
+  const response = await fetch(`https://agent.tinyfish.ai/v1/runs/${encodeURIComponent(runId)}?screenshots=base64&html=none`, {
+    headers: { "X-API-Key": getApiKey() }, signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) { await response.body?.cancel(); throw new Error(apiError(response.status)); }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No capture response returned.");
+  let raw = ""; let bytes = 0; const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 8_000_000) throw new Error("Screenshot response exceeds the report size limit.");
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  const payload: unknown = JSON.parse(raw);
+  if (!payload || typeof payload !== "object" || !("steps" in payload) || !Array.isArray(payload.steps)) throw new Error("Invalid capture response.");
+  return payload.steps.slice(-12).flatMap((step: unknown) => {
+    if (!step || typeof step !== "object") return [];
+    const s = step as Record<string, unknown>;
+    if (typeof s["id"] !== "string" || typeof s["screenshot"] !== "string" || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s["screenshot"])) return [];
+    return [{ stepId: s["id"], image: s["screenshot"], label: typeof s["action"] === "string" ? s["action"].slice(0, 500) : "Browser step" }];
+  });
+}

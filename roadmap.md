@@ -10,3 +10,4 @@
 - [x] Separate verdict requirements from replay eligibility and optional measurements.
 - [x] Run regression checks and exercise booking through the interface; retain native screenshots and fix observed result-format mismatches.
 - [ ] User acceptance check of the latest verdict handling; user chose to run remaining live tests themselves.
+- [ ] Make TinyFish outcomes the sole live verdict source, separate evidence/replay limitations, and verify regression checks.

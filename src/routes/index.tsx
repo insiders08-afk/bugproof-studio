@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAccount } from '@/components/AccountSession';
 import { TestReport } from '@/components/TestReport';
+import { RunStepper } from '@/components/RunStepper';
 import { lovable } from '@/integrations/lovable';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowRight, RotateCcw, LogOut, ChevronDown, ChevronUp, LoaderCircle } from 'lucide-react';
@@ -16,7 +17,7 @@ import { cn } from '@/lib/utils';
 export const Route = createFileRoute('/')({
   head: () => ({ meta: [
     { title: 'RealityGate — Website tests, real answers' },
-    { name: 'description', content: 'Run website tests in plain English with TinyFish verdicts, screenshots, and private saved reports.' },
+    { name: 'description', content: 'Run website tests in plain English with gateway-checked verdicts, screenshots, and private saved reports.' },
     { property: 'og:title', content: 'RealityGate — Website tests, real answers' },
     { property: 'og:description', content: 'Real browser testing, clear TinyFish conclusions, and repeatable test requests.' },
     { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary' },
@@ -104,5 +105,5 @@ function RunDetails({ run, userId }: { run: RunItem; userId: string }) {
   const getReport = useServerFn(getTestReport);
   const report = useQuery({ queryKey: ['test-report', userId, run.id, run.verdict], queryFn: () => getReport({ data: { id: run.id } }), enabled: Boolean(run.verdict), staleTime: 30 * 60_000 });
   if (report.data) return <TestReport r={report.data} />;
-  return <div className="border-t-2 border-border p-5 text-sm">{report.error ? <p role="alert">The report could not be loaded. <Button variant="link" onClick={() => report.refetch()}>Try again</Button></p> : run.error ? <p className="break-words text-destructive">{run.error}</p> : <><p role="status" className="flex items-center gap-2"><LoaderCircle className="size-4 animate-spin" />{run.status === 'REPORTING' || run.verdict ? 'Preparing report…' : 'TinyFish is investigating…'}</p><p className="mt-2 font-mono text-xs text-muted-foreground">{new Date(run.created_at).toLocaleString()}</p></>}</div>;
+  return <div className="border-t-2 border-border p-5 text-sm">{report.error ? <p role="alert">The report could not be loaded. <Button variant="link" onClick={() => report.refetch()}>Try again</Button></p> : run.error ? <p className="break-words text-destructive">{run.error}</p> : <div role="status"><RunStepper status={run.verdict ? 'REPORTING' : run.status} createdAt={run.created_at} hasVerdict={false} /></div>}</div>;
 }

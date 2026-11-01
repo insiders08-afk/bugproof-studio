@@ -13,7 +13,7 @@ export type LiveReport = {
   id: string; url: string; prompt: string; docsUrl: string; docsExcerpt: string; docsTitle: string; docsError: string;
   createdAt: string; verdict: LiveVerdict; confidence: number; plan: Plan; evidence: LiveEvidence[]; screenshots: string[];
   pageTitle: string; found: string[]; missing: string[]; narrative: string; nextSteps: string[]; playwright: string;
-  errors: string[]; finalUrl?: string; tinyfishRunId?: string; tinyfishStreamUrl?: string; agentStatus: string;
+  errors: string[]; finalUrl?: string | undefined; tinyfishRunId?: string | undefined; tinyfishStreamUrl?: string | undefined; agentStatus: string;
 };
 const ResultSchema = z.object({
   outcome: z.enum(["success", "failure", "blocked", "incomplete", "unknown"]).optional(),
@@ -37,7 +37,7 @@ function validUrl(value: unknown, fallback: string): string {
   try { const u = new URL(value); return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : fallback; } catch { return fallback; }
 }
 async function reportWithAI(prompt: string, verdict: LiveVerdict, evidence: LiveEvidence[], docs: string) {
-  const key = process.env.LOVABLE_API_KEY;
+  const key = process.env["LOVABLE_API_KEY"];
   if (!key) return { narrative: "Investigation finished. Review the recorded evidence and verdict.", nextSteps: [] as string[] };
   const { createOpenAI } = await import("@ai-sdk/openai");
   const { generateText } = await import("ai");
@@ -49,7 +49,7 @@ async function reportWithAI(prompt: string, verdict: LiveVerdict, evidence: Live
     'Return JSON only: {"narrative":"...","nextSteps":["..."]}'
   ].join("\\n") });
   const text = result.text; const parsed = record(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-  return { narrative: typeof parsed.narrative === "string" ? parsed.narrative : "Investigation completed.", nextSteps: list(parsed.nextSteps, 5) };
+  return { narrative: typeof parsed["narrative"] === "string" ? parsed["narrative"] : "Investigation completed.", nextSteps: list(parsed["nextSteps"], 5) };
 }
 
 export const runLiveTest = createServerFn({ method: "POST" })

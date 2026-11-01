@@ -7,10 +7,10 @@ export type TinyFishEvent = Record<string, unknown> & {
 };
 
 export type TinyFishAgentRun = {
-  runId?: string;
+  runId?: string | undefined;
   status: string;
   result: unknown;
-  streamingUrl?: string;
+  streamingUrl?: string | undefined;
   events: TinyFishEvent[];
 };
 
@@ -22,7 +22,7 @@ export type TinyFishDocument = {
 };
 
 function getApiKey(): string {
-  const key = process.env.TINYFISH_API_KEY?.trim();
+  const key = process.env["TINYFISH_API_KEY"]?.trim();
   if (!key || key === "YOUR_TINYFISH_API_KEY_HERE") {
     throw new Error("TinyFish is not configured. Set TINYFISH_API_KEY in your server environment.");
   }
@@ -78,8 +78,8 @@ export async function runTinyFishAgent(url: string, goal: string): Promise<TinyF
     const event = parseTinyFishSseBlock(block);
     if (!event) return;
     events.push(event);
-    if (event.type === "STREAMING_URL" && typeof event.streaming_url === "string") {
-      streamingUrl = event.streaming_url;
+    if (event.type === "STREAMING_URL" && typeof event["streaming_url"] === "string") {
+      streamingUrl = event["streaming_url"];
     }
     if (event.type === "COMPLETE") complete = event;
   };
@@ -101,7 +101,7 @@ export async function runTinyFishAgent(url: string, goal: string): Promise<TinyF
   if (!complete) throw new Error("TinyFish stream ended before a COMPLETE event");
   const status = typeof complete.status === "string" ? complete.status : "UNKNOWN";
   if (status !== "COMPLETED") {
-    const errorValue = complete.error;
+    const errorValue = complete["error"];
     const message =
       errorValue && typeof errorValue === "object" && "message" in errorValue
         ? String((errorValue as { message?: unknown }).message ?? status)
@@ -112,9 +112,9 @@ export async function runTinyFishAgent(url: string, goal: string): Promise<TinyF
   }
 
   return {
-    runId: typeof complete.run_id === "string" ? complete.run_id : undefined,
+    runId: typeof complete["run_id"] === "string" ? complete["run_id"] : undefined,
     status,
-    result: complete.result,
+    result: complete["result"],
     streamingUrl,
     events,
   };
@@ -151,20 +151,20 @@ export async function fetchTinyFishDocument(url: string): Promise<TinyFishDocume
   }
 
   const text =
-    typeof page.text === "string"
-      ? page.text
-      : typeof page.markdown === "string"
-        ? page.markdown
-        : typeof page.content === "string"
-          ? page.content
+    typeof page["text"] === "string"
+      ? page["text"]
+      : typeof page["markdown"] === "string"
+        ? page["markdown"]
+        : typeof page["content"] === "string"
+          ? page["content"]
           : "";
 
   if (!text.trim()) throw new Error("TinyFish fetched the documentation but returned no readable text");
 
   return {
-    url: typeof page.url === "string" ? page.url : url,
-    finalUrl: typeof page.final_url === "string" ? page.final_url : url,
-    title: typeof page.title === "string" ? page.title : "",
+    url: typeof page["url"] === "string" ? page["url"] : url,
+    finalUrl: typeof page["final_url"] === "string" ? page["final_url"] : url,
+    title: typeof page["title"] === "string" ? page["title"] : "",
     text: text.slice(0, 20_000),
   };
 }

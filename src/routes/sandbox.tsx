@@ -9,9 +9,9 @@ export const Route = createFileRoute("/sandbox")({
   head: () => ({
     meta: [
       { title: "Sandbox Target — RealityGate" },
-      { name: "description", content: "Controlled webhook app with application-bug and repaired scenarios for RealityGate investigations." },
+      { name: "description", content: "Controlled webhook app with bug, drift and repaired scenarios for RealityGate investigations." },
       { property: "og:title", content: "Sandbox Target — RealityGate" },
-      { property: "og:description", content: "Toggle application-bug and repaired states on a live target app." },
+      { property: "og:description", content: "Toggle bug, documentation drift and repaired states on a live target app." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

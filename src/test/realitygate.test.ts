@@ -5,6 +5,9 @@ describe("evidence gate", () => {
   it("classifies 500 on save as application bug", () => {
     expect(evidenceGate(runSandbox("bug").evidence).verdict).toBe("APPLICATION_BUG");
   });
+  it("classifies renamed button with working save as documentation drift", () => {
+    expect(evidenceGate(runSandbox("drift").evidence).verdict).toBe("DOCUMENTATION_DRIFT");
+  });
   it("repaired target is not reproduced", () => {
     expect(evidenceGate(runSandbox("repaired").evidence).verdict).toBe("NOT_REPRODUCED");
   });

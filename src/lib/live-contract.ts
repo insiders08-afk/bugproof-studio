@@ -37,6 +37,7 @@ export const AgentResult = z.object({
   steps: z.array(StepObservation).max(30),
   screenshots: z.array(z.object({ url: z.string().url().refine(v => v.startsWith("https://")).optional(), stepId: z.string().regex(/^[A-Za-z0-9_-]+$/).optional(), label: text, photos: PhotoObservation, readinessChecked: z.boolean() })).max(20),
   network: z.array(z.object({ url: PublicUrl, status: z.number().int().min(100).max(599), relevant: z.boolean() })).max(30).default([]),
+  documentation_mismatch: z.object({ documented: text, observed: text, documented_quote: text }).optional(),
   error: z.string().max(1000).default(""),
 });
 export type AgentObservation = z.infer<typeof AgentResult>;

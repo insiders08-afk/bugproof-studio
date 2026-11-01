@@ -1,4 +1,5 @@
 const AGENT_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
+const FETCH_URL = "https://api.fetch.tinyfish.ai";
 
 export type TinyFishEvent = Record<string, unknown> & {
   type?: string;
@@ -11,6 +12,13 @@ export type TinyFishAgentRun = {
   result: unknown;
   streamingUrl?: string | undefined;
   events: TinyFishEvent[];
+};
+
+export type TinyFishDocument = {
+  url: string;
+  finalUrl: string;
+  title: string;
+  text: string;
 };
 
 function getApiKey(): string {
@@ -135,6 +143,54 @@ export async function runTinyFishAgent(url: string, goal: string, outputSchema?:
   } finally {
     if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   }
+}
+
+export async function fetchTinyFishDocument(url: string): Promise<TinyFishDocument> {
+  const response = await fetch(FETCH_URL, {
+    method: "POST",
+    headers: {
+      "X-API-Key": getApiKey(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ urls: [url], format: "markdown" }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(await apiError(response));
+  }
+
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object") {
+    throw new Error("TinyFish Fetch returned an invalid response");
+  }
+
+  const data = payload as {
+    results?: Array<Record<string, unknown>>;
+    errors?: unknown[];
+  };
+  const page = data.results?.[0];
+  if (!page) {
+    throw new Error("TinyFish could not fetch readable documentation.");
+  }
+
+  const text =
+    typeof page["text"] === "string"
+      ? page["text"]
+      : typeof page["markdown"] === "string"
+        ? page["markdown"]
+        : typeof page["content"] === "string"
+          ? page["content"]
+          : "";
+
+  if (!text.trim()) throw new Error("TinyFish fetched the documentation but returned no readable text");
+
+  return {
+    url: typeof page["url"] === "string" ? page["url"] : url,
+    finalUrl: typeof page["final_url"] === "string" ? page["final_url"] : url,
+    title: typeof page["title"] === "string" ? page["title"] : "",
+    text: text.slice(0, 20_000),
+  };
 }
 
 /** Retrieve actual provider artifacts; never expose API keys in image URLs. */

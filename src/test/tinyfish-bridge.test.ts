@@ -6,6 +6,10 @@ import { replayActions } from "@/lib/live-contract";
 const result = { outcome: "success", final_url: "https://bookmyboxcric.lovable.app", expected_texts: ["Book slot", "Online booking is not active for this venue yet"], final_text: "Book slot. Online booking is not active for this venue yet.", steps: [], screenshots: [] };
 const artifacts = { runId: "run-1", status: "COMPLETED", result, steps: [{ stepId: "step-1", label: "Open Not Out", status: "RUNNING", image: "data:image/png;base64,AAAA" }, { stepId: "step-2", label: "Check Book slot", status: "RUNNING", image: "data:image/png;base64,AAAA" }] };
 describe("TinyFish native evidence bridge", () => {
+  it("normalizes a provider's no-error sentinel without hiding real errors", () => {
+    expect(bridgeTinyFish({ ...result, error: "none" }, artifacts).observation?.error).toBe("");
+    expect(bridgeTinyFish({ ...result, error: "Button timed out" }, artifacts).observation?.error).toBe("Button timed out");
+  });
   it("preserves native steps and screenshots when structured arrays are empty", () => {
     const b = bridgeTinyFish(result, artifacts);
     expect(b.nativeSteps).toHaveLength(2); expect(b.captures).toHaveLength(2); expect(b.issues).toEqual([]);

@@ -13,7 +13,9 @@ const array = (v: unknown) => Array.isArray(v) ? v : [];
 
 /** Native artifacts and structured conclusions remain separate sources. Never infer clicks from prose. */
 export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
-  const raw = object(result);
+  const raw = { ...object(result) };
+  // Providers sometimes serialize an absent error as a sentinel rather than an empty string.
+  if (typeof raw["error"] === "string" && /^(none|null|n\/a|no error|no errors)$/i.test(raw["error"].trim())) raw["error"] = "";
   const validation = core.safeParse(raw);
   const warnings: string[] = [];
   const issues: string[] = [];

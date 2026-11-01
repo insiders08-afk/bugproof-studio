@@ -1,0 +1,46 @@
+import { describe, expect, it } from "vitest";
+import { bridgeTinyFish } from "@/lib/tinyfish-bridge";
+import { liveGate } from "@/lib/realitygate";
+import { replayActions } from "@/lib/live-contract";
+
+const result = { outcome: "success", final_url: "https://bookmyboxcric.lovable.app", expected_texts: ["Book slot", "Online booking is not active for this venue yet"], final_text: "Book slot. Online booking is not active for this venue yet.", steps: [], screenshots: [] };
+const artifacts = { runId: "run-1", status: "COMPLETED", result, steps: [{ stepId: "step-1", label: "Open Not Out", status: "RUNNING", image: "data:image/png;base64,AAAA" }, { stepId: "step-2", label: "Check Book slot", status: "RUNNING", image: "data:image/png;base64,AAAA" }] };
+describe("TinyFish native evidence bridge", () => {
+  it("preserves native steps and screenshots when structured arrays are empty", () => {
+    const b = bridgeTinyFish(result, artifacts);
+    expect(b.nativeSteps).toHaveLength(2); expect(b.captures).toHaveLength(2); expect(b.issues).toEqual([]);
+    expect(b.warnings.some(w => w.includes("Photo readiness not measured"))).toBe(true);
+  });
+  it("tolerates malformed optional arrays without losing core conclusions", () => {
+    const b = bridgeTinyFish({ ...result, steps: ["clicked card"], screenshots: "unavailable", network: [{ status: 999 }] }, artifacts);
+    expect(b.observation?.outcome).toBe("success"); expect(b.issues).toEqual([]); expect(b.observation?.network).toEqual([]);
+  });
+  it("passes a provider-backed successful negative check without inventing network or photo counts", () => {
+    const b = bridgeTinyFish(result, artifacts); const o = b.observation;
+    if (!o) throw new Error("Missing observation");
+    expect(liveGate({ statusCode: null, pageText: o.final_text, expectedTexts: o.expected_texts, forbiddenTexts: [], agentOutcome: o.outcome, evidenceIssues: b.issues }).verdict).toBe("PASS");
+    expect(o.network).toEqual([]); expect(o.screenshots).toEqual([]);
+  });
+  it("does not pass solely on a completion status", () => {
+    expect(bridgeTinyFish({ outcome: "success" }, artifacts).issues.length).toBeGreaterThan(0);
+    expect(bridgeTinyFish(result).issues).toContain("No native TinyFish workflow steps were retrieved.");
+  });
+  it("does not accept invented screenshot URLs as native pixels", () => {
+    const b = bridgeTinyFish({ ...result, screenshots: [{ url: "https://example.com/image.jpg" }] });
+    expect(b.captures).toEqual([]); expect(b.issues).toContain("No authenticated TinyFish screenshot artifacts were retrieved.");
+  });
+  it("retains captures even when the core contract is invalid", () => {
+    const b = bridgeTinyFish({ ...result, outcome: "COMPLETED" }, artifacts);
+    expect(b.observation).toBeUndefined(); expect(b.captures).toHaveLength(2);
+  });
+  it("does not convert native descriptions into executable clicks", () => {
+    const b = bridgeTinyFish(result, artifacts);
+    if (!b.observation) throw new Error("Missing observation");
+    expect(replayActions(b.observation)).toEqual([]);
+  });
+  it("rejects partial replay sequences rather than dropping a required unsafe step", () => {
+    const b = bridgeTinyFish({ ...result, steps: [{ action: { type: "click", text: "Book slot" }, targetVisible: true, beforeText: "Book slot", afterText: "DATE", ok: true }, { action: { type: "click", text: "Confirm booking" }, targetVisible: true, beforeText: "Confirm booking", afterText: "Booked", ok: true }] }, artifacts);
+    if (!b.observation) throw new Error("Missing observation");
+    expect(replayActions(b.observation)).toEqual([]);
+  });
+});

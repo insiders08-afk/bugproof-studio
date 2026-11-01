@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchTinyFishDocument, fetchTinyFishCaptures, runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
+import { fetchTinyFishCaptures, runTinyFishAgent, TinyFishRunError } from "@/lib/tinyfish";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 function mockStream(chunks: string[]) {
@@ -61,7 +61,7 @@ describe("TinyFish stream lifecycle", () => {
   it.each([401, 400, 429, 500])("handles HTTP %i safely for every TinyFish endpoint", async (status) => {
     vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "PROVIDER_ERROR", message: "private credential and website content" } }, { status })));
-    for (const call of [() => runTinyFishAgent("https://example.com", "Inspect"), () => fetchTinyFishDocument("https://example.com"), () => fetchTinyFishCaptures("run-1")]) {
+    for (const call of [() => runTinyFishAgent("https://example.com", "Inspect"), () => fetchTinyFishCaptures("run-1")]) {
       const error = await call().catch((e: unknown) => e);
       expect(error).toBeInstanceOf(Error);
       if (error instanceof Error) {
@@ -74,6 +74,6 @@ describe("TinyFish stream lifecycle", () => {
   it("handles non-JSON permission errors without claiming a bad key", async () => {
     vi.stubEnv("TINYFISH_API_KEY", "test-only-placeholder");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("private HTML error", { status: 403 })));
-    await expect(fetchTinyFishDocument("https://example.com")).rejects.toThrow("permission/entitlement error (UNKNOWN_ERROR)");
+    await expect(fetchTinyFishCaptures("run-1")).rejects.toThrow("permission/entitlement error (UNKNOWN_ERROR)");
   });
 });

@@ -31,5 +31,5 @@ describe("live gate", () => {
   it("blank expectations do not override TinyFish success", () => expect(liveGate({ ...base, expectedTexts: [" "] }).verdict).toBe("PASS"));
   it("TinyFish failure maps to FAILED even when text matches", () => expect(liveGate({ ...base, agentOutcome: "failure" }).verdict).toBe("FAILED"));
   it.each(["blocked", "incomplete", "unknown"] as const)("keeps TinyFish %s inconclusive", agentOutcome => expect(liveGate({ ...base, agentOutcome }).verdict).toBe("INCONCLUSIVE"));
-  it("missing outcome cannot pass", () => expect(liveGate({ ...base, agentOutcome: undefined }).verdict).toBe("INCONCLUSIVE"));
+  it("missing outcome cannot pass", () => expect(liveGate({ statusCode: base.statusCode, pageText: base.pageText, expectedTexts: base.expectedTexts, forbiddenTexts: base.forbiddenTexts }).verdict).toBe("INCONCLUSIVE"));
 });

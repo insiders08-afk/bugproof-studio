@@ -89,6 +89,7 @@ export const runLiveTest = createServerFn({ method: "POST" })
       const documented = list(parsed.documented_steps, 10); const observed = list(parsed.observed_steps, 10);
       plan = { steps: documented.length ? documented : observed, actions: [], expectedTexts: list(parsed.expected_texts, 5), forbiddenTexts: visibleErrors };
       for (const item of parsed.evidence || []) {
+        if (item.type === "network" && item.status != null) observedStatusCode = item.status;
         const kind = item.type === "network" ? "network" : item.type === "screenshot" ? "screenshot" : item.type === "step" ? "action" : "dom";
         const shot = item.screenshot_url && /^https?:\/\//.test(item.screenshot_url) ? item.screenshot_url : undefined;
         if (shot) screenshots.push(shot);

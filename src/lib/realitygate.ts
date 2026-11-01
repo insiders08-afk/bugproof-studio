@@ -1,21 +1,14 @@
 // Core RealityGate domain: sandbox target simulation, evidence gate, verdict, test recipes.
 
-export type Scenario = "bug" | "drift" | "repaired";
+export type Scenario = "bug" | "repaired";
 
 export const SCENARIOS: { id: Scenario; label: string; hint: string }[] = [
   { id: "bug", label: "Application Bug", hint: "Button exists, but POST /api/webhooks returns 500" },
-  { id: "drift", label: "Documentation Drift", hint: "Button was renamed to “Add Destination”; save works" },
   { id: "repaired", label: "Repaired", hint: "Tutorial matches UI and save succeeds" },
 ];
 
 export const DEFAULT_TICKET =
   "I can't create a webhook. The tutorial says to click Create Endpoint but nothing happens.";
-
-export const DEFAULT_TUTORIAL = `# Creating a webhook
-1. Open Settings → Developers → Webhooks.
-2. Click **Create Endpoint**.
-3. Enter your URL, e.g. https://example.com/hook
-4. Click **Save**. The endpoint appears in the list with status "Active".`;
 
 export type EvidenceKind = "action" | "dom" | "network" | "screenshot";
 export type Evidence = {
@@ -40,7 +33,7 @@ export type SandboxRun = { scenario: Scenario; evidence: Evidence[] };
 /** Behaviour of the built-in target app per scenario. Shared by /sandbox and the investigator. */
 export function targetBehaviour(s: Scenario) {
   return {
-    buttonLabel: s === "drift" ? "Add Destination" : "Create Endpoint",
+    buttonLabel: "Create Endpoint",
     saveStatus: s === "bug" ? 500 : 201,
     saveBody:
       s === "bug"
@@ -94,7 +87,7 @@ export function runSandbox(s: Scenario, expectedButton = "Create Endpoint"): San
   return { scenario: s, evidence: ev };
 }
 
-export type Verdict = "APPLICATION_BUG" | "DOCUMENTATION_DRIFT" | "NOT_REPRODUCED" | "INCONCLUSIVE";
+export type Verdict = "APPLICATION_BUG" | "NOT_REPRODUCED" | "INCONCLUSIVE";
 
 export type Scorecard = {
   verdict: Verdict;
@@ -121,15 +114,6 @@ export function evidenceGate(evidence: Evidence[]): Scorecard {
       facts,
       inferences: ["Server rejected a valid request; failure is in the application, not the instructions"],
       unknowns: ["Root cause inside the server handler", "Whether other webhook URLs are affected"],
-    };
-  }
-  if (!dom.ok && shot.ok) {
-    return {
-      verdict: "DOCUMENTATION_DRIFT",
-      confidence: 0.9,
-      facts,
-      inferences: ["The workflow works but the tutorial references an outdated UI label"],
-      unknowns: ["When the label changed", "Whether other tutorials reference the old label"],
     };
   }
   return {
@@ -178,7 +162,7 @@ export function replayGuardrail(s: Scenario, button = "Create Endpoint"): Replay
 
 // ---------- Live website testing (any URL) ----------
 
-export type LiveVerdict = "PASS" | "APPLICATION_BUG" | "DOCUMENTATION_DRIFT" | "INCONCLUSIVE";
+export type LiveVerdict = "PASS" | "APPLICATION_BUG" | "INCONCLUSIVE";
 
 export type LiveEvidence = { id: string; kind: EvidenceKind; label: string; detail: string; ok: boolean; screenshot?: string };
 
@@ -190,10 +174,7 @@ export type LiveObservation = {
   expectedTexts: string[];
   forbiddenTexts: string[];
   agentOutcome?: "success" | "failure" | "blocked" | "incomplete" | "unknown";
-  documentedSteps?: string[];
-  observedSteps?: string[];
   evidenceIssues?: string[];
-  documentationMismatch?: { documented: string; observed: string } | undefined;
 };
 
 /** Conservative live gate: only reported observations can support a verdict. */
@@ -213,9 +194,6 @@ export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence
   if (errorsSeen.length > 0) return result("APPLICATION_BUG", 0.75);
   if (o.statusCode != null && o.statusCode >= 400) return result("INCONCLUSIVE", 0.25);
   if (o.agentOutcome !== "success") return result("INCONCLUSIVE", 0.2);
-  const mismatch = o.documentationMismatch;
-  const drift = mismatch && normalize(mismatch.documented) !== normalize(mismatch.observed) && text.includes(normalize(mismatch.observed));
-  if (drift) return result("DOCUMENTATION_DRIFT", 0.8);
   if (o.statusCode == null && !o.evidenceIssues) return result("INCONCLUSIVE", 0.2);
   if (o.expectedTexts.length > 0 && missing.length === 0) return result("PASS", 0.9);
   return result("INCONCLUSIVE", 0.35);

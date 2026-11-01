@@ -15,7 +15,7 @@ describe("TinyFish SSE parsing", () => {
 
 describe("TinyFish live evidence gate", () => {
   it("passes a completed workflow with visible success evidence", () => {
-    expect(liveGate({ statusCode: null, pageText: "Saved successfully", expectedTexts: ["Saved successfully"], forbiddenTexts: [], agentOutcome: "success" }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: null, pageText: "Saved successfully", expectedTexts: ["Saved successfully"], forbiddenTexts: [], agentOutcome: "success", evidenceIssues: [] }).verdict).toBe("PASS");
   });
   it("keeps a failure without visible error evidence inconclusive", () => {
     expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "failure" }).verdict).toBe("INCONCLUSIVE");
@@ -26,7 +26,8 @@ describe("TinyFish live evidence gate", () => {
   it("keeps blocked runs inconclusive", () => {
     expect(liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: "blocked" }).verdict).toBe("INCONCLUSIVE");
   });
-  it("detects drift only when a completed workflow has different documented and observed steps", () => {
-    expect(liveGate({ statusCode: null, pageText: "Saved", expectedTexts: ["Saved"], forbiddenTexts: [], agentOutcome: "success", documentedSteps: ["Click Create Endpoint"], observedSteps: ["Click Add Endpoint"] }).verdict).toBe("DOCUMENTATION_DRIFT");
+  it("requires a concrete documented-label mismatch, not paraphrased steps", () => {
+    expect(liveGate({ statusCode: 200, pageText: "Saved", expectedTexts: ["Saved"], forbiddenTexts: [], agentOutcome: "success", documentedSteps: ["Click Create Endpoint"], observedSteps: ["Click Add Endpoint"] }).verdict).toBe("PASS");
+    expect(liveGate({ statusCode: 200, pageText: "Add Endpoint Saved", expectedTexts: ["Saved"], forbiddenTexts: [], agentOutcome: "success", documentationMismatch: { documented: "Create Endpoint", observed: "Add Endpoint" } }).verdict).toBe("DOCUMENTATION_DRIFT");
   });
 });

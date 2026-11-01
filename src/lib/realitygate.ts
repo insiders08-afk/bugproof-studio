@@ -189,19 +189,31 @@ export type LiveObservation = {
   pageText: string;
   expectedTexts: string[];
   forbiddenTexts: string[];
+  agentOutcome?: "success" | "failure" | "blocked" | "incomplete" | "unknown";
+  documentedSteps?: string[];
+  observedSteps?: string[];
 };
 
-/** Deterministic gate for live websites: verdict comes only from observed status, action results and page text. */
+/** Conservative live gate: only reported observations can support a verdict. */
 export function liveGate(o: LiveObservation): { verdict: LiveVerdict; confidence: number; found: string[]; missing: string[]; errorsSeen: string[] } {
-  const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+  const normalize = (value: string) => value.toLowerCase().replace(/\\s+/g, " ").trim();
   const text = normalize(o.pageText);
-  const found = o.expectedTexts.filter((t) => normalize(t) && text.includes(normalize(t)));
-  const missing = o.expectedTexts.filter((t) => !normalize(t) || !text.includes(normalize(t)));
-  const errorsSeen = o.forbiddenTexts.filter((t) => normalize(t) && text.includes(normalize(t)));
-  if (o.scrapeError || o.actionsError || o.statusCode == null) return { verdict: "INCONCLUSIVE", confidence: 0.2, found, missing, errorsSeen };
-  if ((o.statusCode ?? 0) >= 500 || errorsSeen.length > 0) return { verdict: "APPLICATION_BUG", confidence: (o.statusCode ?? 0) >= 500 ? 0.95 : 0.8, found, missing, errorsSeen };
-  if ((o.statusCode ?? 0) >= 400) return { verdict: "APPLICATION_BUG", confidence: 0.75, found, missing, errorsSeen };
-  if (missing.length > 0) return { verdict: "INCONCLUSIVE", confidence: 0.4, found, missing, errorsSeen };
-  if (o.expectedTexts.length === 0) return { verdict: "INCONCLUSIVE", confidence: 0.4, found, missing, errorsSeen };
-  return { verdict: "PASS", confidence: 0.9, found, missing, errorsSeen };
+  const found = o.expectedTexts.filter((value) => normalize(value) && text.includes(normalize(value)));
+  const missing = o.expectedTexts.filter((value) => !normalize(value) || !text.includes(normalize(value)));
+  const errorsSeen = o.forbiddenTexts.filter((value) => normalize(value) && text.includes(normalize(value)));
+  const result = (verdict: LiveVerdict, confidence: number) => ({ verdict, confidence, found, missing, errorsSeen });
+  if (o.scrapeError || o.actionsError || o.agentOutcome === "blocked" || o.agentOutcome === "incomplete" || o.agentOutcome === "unknown") return result("INCONCLUSIVE", 0.2);
+  if (o.agentOutcome === "failure" && errorsSeen.length > 0) return result("APPLICATION_BUG", 0.8);
+  if (o.agentOutcome === "failure") return result("INCONCLUSIVE", 0.35);
+  if (o.statusCode != null && o.statusCode >= 500) return result("APPLICATION_BUG", 0.95);
+  if (errorsSeen.length > 0) return result("APPLICATION_BUG", 0.75);
+  if (o.statusCode != null && o.statusCode >= 400) return result("INCONCLUSIVE", 0.25);
+  if (o.agentOutcome !== "success") return result("INCONCLUSIVE", 0.2);
+  const documented = (o.documentedSteps ?? []).map(normalize).filter(Boolean);
+  const observed = (o.observedSteps ?? []).map(normalize).filter(Boolean);
+  const drift = documented.length > 0 && observed.length > 0 && documented.some((step) => !observed.some((actual) => actual.includes(step) || step.includes(actual)));
+  if (drift) return result("DOCUMENTATION_DRIFT", 0.8);
+  if (o.expectedTexts.length > 0 && missing.length === 0) return result("PASS", 0.9);
+  if (o.expectedTexts.length === 0 && o.agentOutcome === "success") return result("PASS", 0.7);
+  return result("INCONCLUSIVE", 0.35);
 }

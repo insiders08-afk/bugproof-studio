@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           error: string | null
+          finalize_lease_until: string | null
           id: string
           prompt: string
           provider_run_id: string | null
@@ -30,6 +31,7 @@ export type Database = {
         Insert: {
           created_at?: string
           error?: string | null
+          finalize_lease_until?: string | null
           id?: string
           prompt: string
           provider_run_id?: string | null
@@ -42,6 +44,7 @@ export type Database = {
         Update: {
           created_at?: string
           error?: string | null
+          finalize_lease_until?: string | null
           id?: string
           prompt?: string
           provider_run_id?: string | null

@@ -9,8 +9,11 @@ export function testGoal(url: string, prompt: string) {
       "Capture screenshots at meaningful stages of the workflow.",
       "Report the final page's actual visible text, not a summary of previously visited pages.",
       "Include network response information only when it was actually observed.",
-      "If the available evidence is insufficient, report incomplete rather than success.",
-      "A successfully verified negative condition (such as intentionally unavailable booking) is success when that is the user goal. Include verbatim final-page text and expected visible quotes.",
+      "Treat the user goal as a requirement the website must satisfy, not as an open question.",
+      "Set requirement_met to yes only if the requested behaviour actually works on the website; no if it is missing, disabled, unavailable, broken or shows an error; unknown if you could not check it.",
+      "Set outcome to success when the requirement is met, failure when it is not met, and blocked or incomplete when you could not finish checking.",
+      "In requirement_check, state in one or two sentences what was required and what you actually saw.",
+      "If the available evidence is insufficient, report incomplete and requirement_met unknown. Include verbatim final-page text and expected visible quotes.",
       "Return the structured result using the supplied output schema. Leave unavailable optional measurements empty. Do not invent observations or evidence."
     ].join("\n");
 }

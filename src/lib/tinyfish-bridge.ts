@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AgentResult, PublicUrl, StepObservation } from "@/lib/live-contract";
 import type { TinyFishArtifacts } from "@/lib/tinyfish";
+import type { RequirementMet } from "@/lib/realitygate";
 
 const core = AgentResult.pick({ outcome: true, final_url: true, page_title: true, expected_texts: true, final_text: true, summary: true, error: true }).extend({
   expected_texts: z.array(z.string().trim().min(1).max(1000)).min(1).max(100),
@@ -21,6 +22,14 @@ export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
   const outcome = primaryOutcome.success ? primaryOutcome.data : nativeOutcome.success ? nativeOutcome.data : "unknown";
   const summary = typeof raw["summary"] === "string" ? raw["summary"].slice(0, 4000) : typeof object(artifacts?.result)["summary"] === "string" ? String(object(artifacts?.result)["summary"]).slice(0, 4000) : "";
   if (primaryOutcome.success) raw["outcome"] = primaryOutcome.data;
+  // Requirement check is decoded independently too; anything unrecognised is "unknown", never "yes".
+  const decodeMet = (value: unknown): RequirementMet => {
+    const v = typeof value === "boolean" ? (value ? "yes" : "no") : typeof value === "string" ? value.trim().toLowerCase() : "";
+    return v === "yes" || v === "true" ? "yes" : v === "no" || v === "false" ? "no" : "unknown";
+  };
+  const nativeResult = object(artifacts?.result);
+  const requirementMet = raw["requirement_met"] !== undefined ? decodeMet(raw["requirement_met"]) : decodeMet(nativeResult["requirement_met"]);
+  const requirementCheck = typeof raw["requirement_check"] === "string" ? raw["requirement_check"].slice(0, 2000) : typeof nativeResult["requirement_check"] === "string" ? String(nativeResult["requirement_check"]).slice(0, 2000) : "";
   // Providers sometimes serialize an absent error as a sentinel rather than an empty string.
   if (typeof raw["error"] === "string" && /^(none|null|n\/a|no error|no errors)$/i.test(raw["error"].trim())) raw["error"] = "";
   const validation = core.safeParse(raw);
@@ -58,14 +67,15 @@ export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
     else if (measurement.photos.pending > 0 || measurement.photos.broken > 0) warnings.push(`Photos at step ${capture.stepId}: ${measurement.photos.pending} pending, ${measurement.photos.broken} unavailable.`);
   }
   if (!network.length) warnings.push("HTTP status was not measured; no status was invented.");
-  return { outcome, summary, observation: validation.success ? { ...validation.data, steps, screenshots, network, visible_errors: visibleErrors } : undefined,
+  return { outcome, summary, requirementMet, requirementCheck, observation: validation.success ? { ...validation.data, steps, screenshots, network, visible_errors: visibleErrors } : undefined,
     nativeSteps, captures, warnings: [...new Set(warnings)], issues };
 }
 
 export const LIVE_OUTPUT_SCHEMA = {
-  type: "object", required: ["outcome", "final_url", "expected_texts", "final_text"],
+  type: "object", required: ["outcome", "requirement_met", "requirement_check", "final_url", "expected_texts", "final_text"],
   properties: {
     outcome: { type: "string", enum: ["success", "failure", "blocked", "incomplete", "unknown"] },
+    requirement_met: { type: "string", enum: ["yes", "no", "unknown"] }, requirement_check: { type: "string" },
     final_url: { type: "string" }, page_title: { type: "string" }, summary: { type: "string" },
     expected_texts: { type: "array", items: { type: "string" } },
     final_text: { type: "string" },

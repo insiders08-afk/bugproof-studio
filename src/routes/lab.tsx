@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
-  DEFAULT_TICKET, DEFAULT_TUTORIAL, SCENARIOS, evidenceGate, playwrightRecipe, replayGuardrail, runSandbox,
+  DEFAULT_TICKET, SCENARIOS, evidenceGate, playwrightRecipe, replayGuardrail, runSandbox,
   type Evidence, type ReplayStep, type Scenario, type Scorecard,
 } from "@/lib/realitygate";
 import { analyzeInvestigation, type Analysis } from "@/lib/investigate.functions";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/lab")({
       { title: "RealityGate Lab — Sandbox investigations" },
       { name: "description", content: "Turn vague software complaints into evidence-backed diagnoses and regression tests." },
       { property: "og:title", content: "RealityGate Lab — Sandbox investigations" },
-      { property: "og:description", content: "Detect documentation drift vs real bugs, prove it with evidence, and lock it in with a Playwright guardrail." },
+      { property: "og:description", content: "Reproduce application failures, prove them with evidence, and lock fixes in with a Playwright guardrail." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

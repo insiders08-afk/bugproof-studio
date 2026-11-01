@@ -10,5 +10,7 @@
 <!-- LOVABLE:END -->
 
 - RealityGate verdicts come only from deterministic gates in src/lib/realitygate.ts (evidenceGate for the sandbox lab, liveGate for real URLs); AI (src/lib/livetest.functions.ts, src/lib/investigate.functions.ts) only plans actions/expected texts and narrates, so conclusions stay evidence-backed.
-- Real-site runs use a single Firecrawl Interact browser session through the connector gateway, with validated visible-text actions and per-step screenshot observations; keeping one session preserves navigation state and failure evidence. Past tests remain in browser localStorage (no backend yet).
+- Real-site runs use one TinyFish run-sse session with bounded duration and screenshot capture enabled; preserving the run identifier and never retrying POST automatically avoids losing failure state or duplicating billable actions. Past tests remain in browser localStorage (no backend yet).
+- TinyFish results must satisfy src/lib/live-contract.ts before liveGate can confirm a verdict; final-page text, visible-target observations and screenshot readiness prevent agent completion or summaries from masquerading as proof.
+- Export only safe observed actions as Playwright replay candidates, not independently executed guardrails; TinyFish observations are provider-reported and must remain labelled as such.
 - Browser commands and replay recipes share src/lib/live-browser.ts so observed actions and exported tests follow the same targeting and readiness rules.

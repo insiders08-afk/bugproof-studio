@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { runLiveTest, type LiveReport } from "@/lib/livetest.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,16 +35,22 @@ function Home() {
   const [prompt, setPrompt] = useState("");
   const [docsUrl, setDocsUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [stage, setStage] = useState(0);
+  const submitting = useRef(false);
   const [err, setErr] = useState("");
   const [history, setHistory] = useState<LiveReport[]>([]);
   const [open, setOpen] = useState<string | null>(null);
 
-  useEffect(() => { try { setHistory(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch { /* ignore */ } }, []);
+  useEffect(() => {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(KEY) || "[]");
+      if (Array.isArray(stored)) setHistory(stored.filter((r): r is LiveReport => Boolean(r && typeof r === "object" && typeof r.id === "string" && typeof r.prompt === "string" && typeof r.url === "string" && typeof r.createdAt === "string" && Array.isArray(r.evidence) && Array.isArray(r.screenshots) && Array.isArray(r.errors) && Array.isArray(r.nextSteps) && r.plan && Array.isArray(r.plan.steps) && Array.isArray(r.plan.expectedTexts) && Array.isArray(r.plan.forbiddenTexts))).slice(0, 30));
+    } catch { setErr("Saved history could not be read. New tests can still run."); }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true); setErr("");
     try {
       const r = await run({ data: { url: url.trim(), prompt: prompt.trim(), docsUrl: docsUrl.trim() } });
@@ -54,7 +60,7 @@ function Home() {
       catch { setErr("Test completed, but your browser could not save the history."); }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
-    } finally { setBusy(false); }
+    } finally { submitting.current = false; setBusy(false); }
   }
 
   return (
@@ -71,14 +77,14 @@ function Home() {
 
       <form onSubmit={submit} className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-lg">
         <label className="block font-mono text-xs uppercase tracking-widest text-muted-foreground">Website URL</label>
-        <Input type="url" required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" className="h-11 font-mono" />
+        <Input aria-label="Website URL" type="url" required maxLength={2000} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" className="h-11 font-mono" />
         <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">Documentation / tutorial URL (optional)</label>
-        <Input type="url" value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} placeholder="https://docs.example.com/guide" className="h-11 font-mono" />
+        <Input aria-label="Documentation URL" type="url" maxLength={2000} value={docsUrl} onChange={(e) => setDocsUrl(e.target.value)} placeholder="https://docs.example.com/guide" className="h-11 font-mono" />
         <label className="block pt-2 font-mono text-xs uppercase tracking-widest text-muted-foreground">What should we test?</label>
-        <Textarea required rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)}
+        <Textarea aria-label="What should we test?" required maxLength={2000} rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder='e.g. "Search for laptop and check that results appear" or "The pricing page should show a Pro plan"' />
         <Button type="submit" size="lg" className="w-full" disabled={busy || prompt.trim().length < 3}>
-          {busy ? "TinyFish is investigating…" : "Run live investigation"}
+          {busy ? "TinyFish is investigating…" : "Run test"}
         </Button>
         {busy && <p role="status" className="text-center text-xs text-muted-foreground">Waiting for the real TinyFish browser run to finish. This can take a few minutes.</p>}
         {err && <p className="text-sm text-destructive">{err}</p>}
@@ -125,7 +131,15 @@ function Report({ r }: { r: LiveReport }) {
         <ol className="space-y-1 font-mono text-xs">{r.evidence.filter((e) => e.kind !== "screenshot").map((e) => (
           <li key={e.id} className="flex gap-2"><span className="text-muted-foreground">{e.id}</span><span className={e.ok ? "text-success" : "text-destructive"}>{e.ok ? "✓" : "✗"}</span><span className="flex-1 break-all">{e.label} <span className="text-muted-foreground">— {e.detail.slice(0, 200)}</span></span></li>
         ))}</ol></Block>
-      
+      {r.unknowns && r.unknowns.length > 0 && <Block title="Unknowns / limitations"><ul className="list-disc pl-5 text-muted-foreground">{r.unknowns.map((s, i) => <li key={i}>{s}</li>)}</ul></Block>}
+      {r.playwright && <Block title={r.verdict === "APPLICATION_BUG" ? "Playwright regression candidate" : "Playwright replay candidate"}>
+        <Button variant="outline" onClick={() => {
+          const objectUrl = URL.createObjectURL(new Blob([r.playwright], { type: "text/plain" }));
+          const link = document.createElement("a"); link.href = objectUrl; link.download = `realitygate-${r.id}.spec.ts`; link.click();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        }}>Download test</Button>
+        <pre className="mt-3 max-h-80 overflow-auto border border-border bg-background p-3 text-xs"><code>{r.playwright}</code></pre>
+      </Block>}
       {r.errors.length > 0 && <p className="text-xs text-destructive">{r.errors.join(" · ")}</p>}
     </div>
   );

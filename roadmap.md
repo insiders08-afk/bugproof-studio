@@ -10,6 +10,10 @@
 - [x] Separate verdict requirements from replay eligibility and optional measurements.
 - [x] Run regression checks and exercise booking through the interface; retain native screenshots and fix observed result-format mismatches.
 - [ ] User acceptance check of the latest verdict handling; user chose to run remaining live tests themselves.
+- [x] Save the revised three-phase plan with all 17 targeted improvements.
+- [ ] Phase 1: independent classification, selective evidence/readiness, no-progress detection and security foundations.
+- [ ] Phase 1: bounded parallel artifacts, native progress and timing instrumentation.
+- [ ] Phase 1: regression and signed-in end-to-end verification; document provider capability blockers.
 - [x] Make TinyFish outcomes the sole live verdict source, separate evidence/replay limitations, and verify regression checks.
 - [x] Simplify report sections and add Repeat test with saved URL/instructions.
 - [x] Apply simple green-and-brown neo-brutalist styling.

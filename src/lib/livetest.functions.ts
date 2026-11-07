@@ -2,12 +2,16 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { PublicUrl } from './live-contract';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
+import { assertSafeTestInput } from './evidence-security';
 export type { LiveReport, Plan } from './live-report.server';
 export type { RunItem } from './test-runs.server';
 const Id = z.object({ id: z.string().uuid() });
 export const runLiveTest = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ url: PublicUrl, prompt: z.string().trim().min(3).max(2000), requestKey: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => {
+    const input = z.object({ url: PublicUrl, prompt: z.string().trim().min(3).max(2000), requestKey: z.string().uuid() }).parse(d);
+    assertSafeTestInput(input); return input;
+  })
   .handler(async ({ data, context }) => {
     const { startRun } = await import('./test-runs.server');
     return startRun(context.userId, data);

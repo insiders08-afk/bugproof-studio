@@ -24,6 +24,15 @@ export const StepObservation = z.object({
   afterText: z.string().max(16000),
   ok: z.boolean(),
   error: z.string().max(1000).optional(),
+  beforeState: z.string().max(2000).optional(),
+  afterState: z.string().max(2000).optional(),
+  telemetry: z.object({
+    domFragment: z.string().max(4000).optional(), ariaSnapshot: z.string().max(4000).optional(),
+    enabled: z.boolean().optional(), bounds: z.object({ x: z.number(), y: z.number(), width: z.number().min(0), height: z.number().min(0) }).optional(),
+    consoleErrors: z.array(z.string().max(1000)).max(10).optional(), pageExceptions: z.array(z.string().max(1000)).max(10).optional(),
+    navigations: z.array(z.string().max(2000)).max(10).optional(), mutationCount: z.number().int().min(0).optional(),
+    requestIds: z.array(z.string().max(200)).max(20).optional(),
+  }).optional(),
 });
 export const PhotoObservation = z.object({ total: z.number().int().min(0), loaded: z.number().int().min(0), pending: z.number().int().min(0), broken: z.number().int().min(0) }).refine(p => p.total === p.loaded + p.pending + p.broken, "Photo counts must add up");
 export const AgentResult = z.object({

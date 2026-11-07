@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AgentResult, PublicUrl, StepObservation } from "@/lib/live-contract";
 import type { TinyFishArtifacts } from "@/lib/tinyfish";
 import type { RequirementMet } from "@/lib/realitygate";
+import { FAILURE_CLASSES } from './run-assessment';
 
 const core = AgentResult.pick({ outcome: true, final_url: true, page_title: true, expected_texts: true, final_text: true, summary: true, error: true }).extend({
   expected_texts: z.array(z.string().trim().min(1).max(1000)).min(1).max(100),
@@ -30,6 +31,8 @@ export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
   const nativeResult = object(artifacts?.result);
   const requirementMet = raw["requirement_met"] !== undefined ? decodeMet(raw["requirement_met"]) : decodeMet(nativeResult["requirement_met"]);
   const requirementCheck = typeof raw["requirement_check"] === "string" ? raw["requirement_check"].slice(0, 2000) : typeof nativeResult["requirement_check"] === "string" ? String(nativeResult["requirement_check"]).slice(0, 2000) : "";
+  const failure = z.enum(FAILURE_CLASSES).safeParse(raw['failure_class'] ?? nativeResult['failure_class']);
+  const failureEvidence = typeof raw['failure_evidence'] === 'string' ? raw['failure_evidence'].slice(0, 2000) : '';
   // Providers sometimes serialize an absent error as a sentinel rather than an empty string.
   if (typeof raw["error"] === "string" && /^(none|null|n\/a|no error|no errors)$/i.test(raw["error"].trim())) raw["error"] = "";
   const validation = core.safeParse(raw);
@@ -67,7 +70,7 @@ export function bridgeTinyFish(result: unknown, artifacts?: TinyFishArtifacts) {
     else if (measurement.photos.pending > 0 || measurement.photos.broken > 0) warnings.push(`Photos at step ${capture.stepId}: ${measurement.photos.pending} pending, ${measurement.photos.broken} unavailable.`);
   }
   if (!network.length) warnings.push("HTTP status was not measured; no status was invented.");
-  return { outcome, summary, requirementMet, requirementCheck, observation: validation.success ? { ...validation.data, steps, screenshots, network, visible_errors: visibleErrors } : undefined,
+  return { outcome, summary, requirementMet, requirementCheck, failureClass: failure.success ? failure.data : undefined, failureEvidence, observation: validation.success ? { ...validation.data, steps, screenshots, network, visible_errors: visibleErrors } : undefined,
     nativeSteps, captures, warnings: [...new Set(warnings)], issues };
 }
 
@@ -76,6 +79,7 @@ export const LIVE_OUTPUT_SCHEMA = {
   properties: {
     outcome: { type: "string", enum: ["success", "failure", "blocked", "incomplete", "unknown"] },
     requirement_met: { type: "string", enum: ["yes", "no", "unknown"] }, requirement_check: { type: "string" },
+    failure_class: { type: 'string', enum: [...FAILURE_CLASSES] }, failure_evidence: { type: 'string' },
     final_url: { type: "string" }, page_title: { type: "string" }, summary: { type: "string" },
     expected_texts: { type: "array", items: { type: "string" } },
     final_text: { type: "string" },
@@ -85,6 +89,13 @@ export const LIVE_OUTPUT_SCHEMA = {
         type: { type: "string", enum: ["click", "fill", "press", "scroll", "wait"] }, text: { type: "string" }, label: { type: "string" },
         key: { type: "string", enum: ["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"] }, direction: { type: "string", enum: ["up", "down"] }, milliseconds: { type: "integer" },
       } }, targetVisible: { type: "boolean" }, beforeText: { type: "string" }, afterText: { type: "string" }, ok: { type: "boolean" }, error: { type: "string" },
+      beforeState: { type: 'string' }, afterState: { type: 'string' },
+      telemetry: { type: 'object', properties: {
+        domFragment: { type: 'string' }, ariaSnapshot: { type: 'string' }, enabled: { type: 'boolean' },
+        bounds: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' } } },
+        consoleErrors: { type: 'array', items: { type: 'string' } }, pageExceptions: { type: 'array', items: { type: 'string' } },
+        navigations: { type: 'array', items: { type: 'string' } }, mutationCount: { type: 'integer' }, requestIds: { type: 'array', items: { type: 'string' } },
+      } },
     } } },
     screenshots: { type: "array", items: { type: "object", required: ["label", "photos", "readinessChecked"], properties: {
       stepId: { type: "string" }, label: { type: "string" }, readinessChecked: { type: "boolean" },

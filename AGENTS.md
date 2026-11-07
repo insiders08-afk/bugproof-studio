@@ -9,7 +9,7 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- liveGate maps only TinyFish's explicit test outcome to PASS, FAILED or INCONCLUSIVE so AI narration and evidence checks cannot override the provider. FAILED is a failed test, not proof of application fault; APPLICATION_BUG remains a legacy live-report label.
+- New reports persist independent executionStatus, requirementVerdict and nullable failureClass assessments; legacy liveGate verdicts remain for compatibility. Provider observations establish requirement outcomes, not verified application regressions; AI and optional evidence never override them.
 - Real-site runs start once through TinyFish run-async with bounded duration and screenshot capture; persist provider IDs before polling and never automatically retry billable starts. Cloud test_runs stores owner-private history, not browser localStorage.
 - Authenticated server functions verify identity before dynamically importing privileged run helpers; all privileged reads/writes additionally scope to the verified owner. Only server helpers can write provider reports, preventing forged browser verdicts.
 - Provider execution survives navigation; owner-triggered polls recover completion using an expiring database finalization lease. Private capture paths are signed on read; no background promises or in-memory job state.
@@ -20,3 +20,6 @@
 - Retrieve screenshot pixels via authenticated TinyFish run lookup with inline base64 and correlate readiness by provider step ID; never expose credentials or trust agent-invented screenshot URLs.
 - Browser commands and replay recipes share src/lib/live-browser.ts so observed actions and exported tests follow the same targeting and readiness rules.
 - The old simulated lab/sandbox demo is removed; the app only tests real websites, and external documentation URL scraping is absent so live tests never depend on reference fetching.
+- Evidence security is shared by input validation, report sanitization and private capture path validation; reject authentication material rather than storing it before encrypted session injection is supported.
+- Artifact uploads run in batches of four and settle fully before lease release; new reports store finalization timing metadata for measured performance rather than promised speedups.
+- Provider-reported selective telemetry is optional; action/model and no-progress instructions are not hard remote enforcement. No universal hydration flag, global network-idle gate, or uncertified pixel/session-isolation guarantee.

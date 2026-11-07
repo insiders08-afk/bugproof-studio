@@ -3,6 +3,8 @@ import { startTinyFishAgent, fetchTinyFishStatus, fetchTinyFishArtifacts } from 
 import { LIVE_OUTPUT_SCHEMA } from './tinyfish-bridge';
 import { testGoal } from './test-goal';
 import type { Json, Tables } from '@/integrations/supabase/types';
+import { assertSafeTestInput, assertPrivateCapturePath } from './evidence-security';
+import { mapArtifacts } from './artifact-pipeline';
 
 export type RunItem = Pick<Tables<'test_runs'>, 'id' | 'url' | 'prompt' | 'status' | 'created_at' | 'error'> & { verdict?: string | undefined };
 const terminal = new Set(['COMPLETED', 'FAILED', 'CANCELLED', 'TIMED_OUT']);
@@ -15,6 +17,7 @@ function item(row: Tables<'test_runs'>): RunItem {
   return { id: row.id, url: row.url, prompt: row.prompt, status: row.status, created_at: row.created_at, error: row.error, ...(report ? { verdict: report.verdict } : {}) };
 }
 export async function startRun(userId: string, input: { url: string; prompt: string; requestKey: string }) {
+  assertSafeTestInput(input);
   const db = await admin();
   const { data: existing, error: lookupError } = await db.from('test_runs').select('*').eq('user_id', userId).eq('request_key', input.requestKey).maybeSingle();
   if (lookupError) throw new Error('Saved tests could not be checked.');
@@ -66,22 +69,28 @@ export async function refreshRun(userId: string, id: string) {
   if (leaseError) throw new Error('The report could not be prepared. Try refreshing.');
   if (!leased) return { ...item(row), status: 'REPORTING' };
   try {
+    const finalizationStarted = Date.now();
     let artifacts;
     try { artifacts = await fetchTinyFishArtifacts(row.provider_run_id); } catch { /* verdict remains provider-owned */ }
+    const artifactMs = Date.now() - finalizationStarted;
+    const reportStarted = Date.now();
     const report = await buildLiveReport(row, { runId: row.provider_run_id, status: state.status, result: state.result, events: [] }, artifacts);
     report.id = row.id; report.createdAt = row.created_at;
+    const reportMs = Date.now() - reportStarted;
+    const uploadStarted = Date.now();
     const replacements = new Map<string, string>();
-    for (const [i, image] of report.screenshots.entries()) {
+    await mapArtifacts(report.screenshots, async (image, i) => {
       const match = image.match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
-      if (!match?.[1] || !match[2]) continue;
+      if (!match?.[1] || !match[2]) throw new Error('Invalid screenshot capture.');
       const path = `${userId}/${row.id}/${i}.${match[1]}`;
       const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0));
       const { error: uploadError } = await db.storage.from('test-captures').upload(path, bytes, { contentType: `image/${match[1]}`, upsert: true });
       if (uploadError) throw new Error('Screenshot saving failed. Your test will be recovered on refresh.');
       replacements.set(image, path);
-    }
+    });
     report.screenshots = report.screenshots.map(image => replacements.get(image) ?? image);
     report.evidence = report.evidence.map(e => e.screenshot ? { ...e, screenshot: replacements.get(e.screenshot) ?? e.screenshot } : e);
+    report.telemetry = { providerElapsedMs: Math.max(0, finalizationStarted - Date.parse(row.created_at)), artifactMs, reportMs, uploadMs: Date.now() - uploadStarted, finalizationMs: Date.now() - finalizationStarted, captureCount: report.screenshots.length };
     const { error: saveError } = await db.from('test_runs').update({ status: state.status, report: JSON.parse(JSON.stringify(report)) as Json, error: null, finalize_lease_until: null }).eq('id', id).eq('user_id', userId);
     if (saveError) throw new Error('The report could not be saved. Refresh to recover it.');
     return { ...item(row), status: state.status, verdict: report.verdict };
@@ -96,8 +105,8 @@ export async function readReport(userId: string, id: string): Promise<LiveReport
   assertOwner(row, userId);
   if (!row?.report) return null;
   const report = row.report as unknown as LiveReport;
-  const paths = report.screenshots.filter(s => !s.startsWith('data:'));
-  if (paths.some(path => !path.startsWith(`${userId}/${row.id}/`) || path.includes('..'))) throw new Error('Invalid private screenshot path.');
+  const paths = [...new Set([...report.screenshots, ...report.evidence.flatMap(e => e.screenshot ? [e.screenshot] : [])].filter(s => !s.startsWith('data:')))];
+  for (const path of paths) assertPrivateCapturePath(path, userId, row.id);
   const replacements = new Map<string, string>();
   if (paths.length) {
     const { data, error } = await db.storage.from('test-captures').createSignedUrls(paths, 3600);

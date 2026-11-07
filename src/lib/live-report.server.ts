@@ -4,9 +4,13 @@ import type { TinyFishAgentRun, TinyFishArtifacts } from "@/lib/tinyfish";
 import { replayActions } from "@/lib/live-contract";
 import { bridgeTinyFish } from "@/lib/tinyfish-bridge";
 import { recipe, type Action } from "@/lib/live-browser";
+import { assessRun, detectNoProgress, type RunAssessment } from './run-assessment';
+import { hasSensitiveMaterial, sanitizeEvidence } from './evidence-security';
 
 export type Plan = { steps: string[]; actions: Action[]; expectedTexts: string[]; forbiddenTexts: string[] };
 export type LiveReport = {
+  assessment?: RunAssessment;
+  telemetry?: { providerElapsedMs: number; artifactMs: number; reportMs: number; uploadMs: number; finalizationMs: number; captureCount: number };
   id: string; url: string; prompt: string; providerSummary?: string; replayUnavailable?: string;
   verdictSource?: "tinyfish" | "gateway"; requirementMet?: "yes" | "no" | "unknown"; requirementCheck?: string; gateReason?: string; providerOutcome?: "success" | "failure" | "blocked" | "incomplete" | "unknown";
   createdAt: string; verdict: LiveVerdict; confidence: number; plan: Plan; evidence: LiveEvidence[]; screenshots: string[];
@@ -38,7 +42,11 @@ async function reportWithAI(prompt: string, verdict: LiveVerdict, evidence: Live
 }
 
 export async function buildLiveReport(data: {url: string; prompt: string}, run: TinyFishAgentRun, artifacts?: TinyFishArtifacts): Promise<LiveReport> {
+    const sanitizedRun = sanitizeEvidence(run);
+    const sanitizedArtifacts = artifacts ? sanitizeEvidence(artifacts) : undefined;
+    const sensitiveContext = hasSensitiveMaterial(JSON.stringify(run.result)) || Boolean(artifacts && hasSensitiveMaterial(JSON.stringify({ result: artifacts.result, steps: artifacts.steps.map(({ image: _image, ...step }) => step) })));
     const evidence: LiveEvidence[] = []; const errors: string[] = []; const screenshots: string[] = [];
+    let assessment = assessRun({ status: run.status, outcome: 'unknown', requirementMet: 'unknown' });
     let n = 0;
     const push = (item: Omit<LiveEvidence, "id">) => evidence.push({ id: "E" + (++n), ...item });
     let agentStatus = "NOT_STARTED"; let runId: string | undefined; let streamUrl: string | undefined;
@@ -50,15 +58,19 @@ export async function buildLiveReport(data: {url: string; prompt: string}, run: 
     let requirementMet: NonNullable<LiveReport["requirementMet"]> = "unknown"; let requirementCheck = "";
     try {
       agentStatus = run.status; runId = run.runId; streamUrl = run.streamingUrl;
-      const bridge = bridgeTinyFish(run.result ?? artifacts?.result, artifacts);
+      const bridge = bridgeTinyFish(sanitizedRun.result ?? sanitizedArtifacts?.result, sanitizedArtifacts);
       providerOutcome = bridge.outcome; providerSummary = bridge.summary;
       requirementMet = bridge.requirementMet; requirementCheck = bridge.requirementCheck;
+      assessment = assessRun({ status: agentStatus, outcome: providerOutcome, requirementMet, failureClass: bridge.failureClass, failureEvidence: bridge.failureEvidence });
       gate = liveGate({ statusCode: null, pageText: "", expectedTexts: [], forbiddenTexts: [], agentOutcome: providerOutcome, requirementMet, runStatus: agentStatus });
       issues.push(...bridge.issues); unknowns.push(...bridge.warnings);
       plan.steps = bridge.nativeSteps.map(s => s.label);
-      screenshots.push(...bridge.captures.map(c => c.image));
+      if (!sensitiveContext) screenshots.push(...bridge.captures.map(c => c.image));
+      else unknowns.push('Captures withheld because sensitive context was detected; pixel sanitization is not available.');
+      unknowns.push('Action/model budgets and readiness are provider instructions, not independent browser enforcement; provider duration is hard capped. Remote session isolation is not independently certified.');
       for (const step of bridge.nativeSteps) push({ kind: "action", label: step.label, detail: `TinyFish native step ${step.stepId} · provider status: ${step.status}. This is a native action description, not a measured click result.`, ok: !["FAILED", "CANCELLED"].includes(step.status) });
       for (const capture of bridge.captures) {
+        if (sensitiveContext) continue;
         const measurement = bridge.observation?.screenshots.find(s => s.stepId === capture.stepId);
         push({ kind: "screenshot", label: capture.label, detail: measurement ? `Native step ${capture.stepId}. Provider-reported photos: ${measurement.photos.loaded}/${measurement.photos.total} loaded, ${measurement.photos.pending} pending, ${measurement.photos.broken} unavailable. Readiness checked: ${measurement.readinessChecked}` : `Authenticated native capture at step ${capture.stepId}. Photo readiness/counts unknown.`, ok: true, screenshot: capture.image });
       }
@@ -67,6 +79,10 @@ export async function buildLiveReport(data: {url: string; prompt: string}, run: 
         finalUrl = result.final_url; pageTitle = result.page_title; providerSummary = providerSummary || result.final_text;
         plan = { steps: bridge.nativeSteps.map(s => s.label), actions: replayActions(result), expectedTexts: result.expected_texts, forbiddenTexts: result.visible_errors };
         for (const step of result.steps) push({ kind: "action", label: "Structured observation: " + JSON.stringify(step.action), detail: step.error || step.afterText.slice(0, 1000), ok: step.ok });
+        for (const step of result.steps) {
+          push({ kind: 'dom', label: 'Before / after action (TinyFish-reported)', detail: JSON.stringify({ before: step.beforeState ?? step.beforeText, after: step.afterState ?? step.afterText, targetVisible: step.targetVisible, ...step.telemetry }).slice(0, 6000), ok: step.ok });
+        }
+        if (detectNoProgress(result.steps.map(step => ({ state: step.beforeState ?? step.beforeText, action: JSON.stringify(step.action), afterState: step.afterState ?? step.afterText })))) unknowns.push('Repeated state/action without progress detected in the returned trace. Remote execution was not independently interrupted.');
         for (const net of result.network) push({ kind: "network", label: `${net.url} → ${net.status}`, detail: "TinyFish-reported measurement; workflow relevant: " + net.relevant, ok: net.status < 400 });
         push({ kind: "dom", label: "Final-page observation (TinyFish-reported)", detail: result.final_text.slice(0, 4000), ok: Boolean(result.final_text.trim()) });
         if (result.error) issues.push(result.error);
@@ -93,8 +109,8 @@ export async function buildLiveReport(data: {url: string; prompt: string}, run: 
     try { report = await reportWithAI(data.prompt, verdict, evidence, providerOutcome, providerSummary, `${requirementMet} — ${requirementCheck}`); } catch { errors.push("AI summary unavailable; TinyFish's verdict is unchanged."); }
     const playwright = !replayUnavailable && plan.expectedTexts.length > 0 && (verdict === "PASS" || verdict === "FAILED")
       ? recipe(data.url, plan.actions, plan.expectedTexts) : "";
-    return { id: crypto.randomUUID(), url: data.url, prompt: data.prompt, providerSummary, replayUnavailable, verdictSource: "gateway", providerOutcome, requirementMet, requirementCheck, gateReason: gate.reason,
+    return sanitizeEvidence({ id: crypto.randomUUID(), url: data.url, prompt: data.prompt, providerSummary, replayUnavailable, verdictSource: "gateway" as const, providerOutcome, requirementMet, requirementCheck, gateReason: gate.reason, assessment,
       createdAt: new Date().toISOString(), verdict, confidence: gate.confidence, plan, evidence, screenshots: [...new Set(screenshots)], pageTitle,
       found: gate.found, missing: gate.missing, narrative: report.narrative, nextSteps: report.nextSteps, playwright, facts: evidence.map(e => `[${e.id}] ${e.label}: ${e.detail}`), inferences: [report.narrative], unknowns: [...unknowns, ...issues], errors, finalUrl,
-      tinyfishRunId: runId, tinyfishStreamUrl: streamUrl, agentStatus };
+      tinyfishRunId: runId, tinyfishStreamUrl: streamUrl, agentStatus });
   }
